@@ -1,0 +1,19 @@
+# SafeGuard AI - Python Requirements
+# Install with: pip install -r requirements.txt
+
+# Core framework
+flask
+flask-cors
+
+# Computer Vision & AI
+opencv-python
+mediapipe
+numpy
+ultralytics
+
+# Alert system
+twilio
+
+# Utilities
+requests
+Pillow

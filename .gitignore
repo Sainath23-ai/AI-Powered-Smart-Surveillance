@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+.venv/
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Virtualenv
+.env
+ENV/
+env.bak/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Data and uploads
+data/
+uploads/
+
+# OneDrive and system paths
+OneDrive/
+AppData/
+
+# caches
+.cache/
+
+# Node
+node_modules/

@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SafeGuard AI – Smart Surveillance Dashboard</title>
+<meta name="description" content="AI-powered women & child safety surveillance system with real-time threat detection"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">🛡️</div>
+    <div class="logo-text">
+      <span class="logo-title">SafeGuard</span>
+      <span class="logo-sub">AI Surveillance</span>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a class="nav-item active" data-page="dashboard" href="#" id="nav-dashboard">
+      <span class="nav-icon">📊</span><span>Dashboard</span>
+    </a>
+    <a class="nav-item" data-page="live" href="#" id="nav-live">
+      <span class="nav-icon">📹</span><span>Live Monitor</span>
+    </a>
+    <a class="nav-item" data-page="alerts" href="#" id="nav-alerts">
+      <span class="nav-icon">🔔</span><span>Alert History</span>
+      <span class="nav-badge" id="alert-badge">0</span>
+    </a>
+    <a class="nav-item" data-page="history" href="#" id="nav-history">
+      <span class="nav-icon">📁</span><span>Suspicious History</span>
+      <span class="nav-badge" id="history-badge">0</span>
+    </a>
+    <a class="nav-item" data-page="thieves" href="#" id="nav-thieves">
+      <span class="nav-icon">🕵️</span><span>Thief Database</span>
+      <span class="nav-badge" id="thief-badge">0</span>
+    </a>
+    <a class="nav-item" data-page="settings" href="#" id="nav-settings">
+      <span class="nav-icon">⚙️</span><span>Settings</span>
+    </a>
+    <a class="nav-item" data-page="esp32" href="#" id="nav-esp32">
+      <span class="nav-icon">🔌</span><span>ESP32 Control</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-status">
+    <div class="status-row">
+      <span class="status-dot" id="sys-dot"></span>
+      <span id="sys-label">System Offline</span>
+    </div>
+    <div class="status-row">
+      <span class="status-dot" id="esp-dot"></span>
+      <span id="esp-label">ESP32 Unknown</span>
+    </div>
+    <div class="team-credit">Made by <strong>Team APEX</strong></div>
+  </div>
+</aside>
+
+<!-- ── MAIN CONTENT ───────────────────────────────────────────────────── -->
+<main class="main-content">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1 class="page-title" id="page-title">Dashboard</h1>
+      <span class="breadcrumb">SafeGuard AI › Overview</span>
+    </div>
+    <div class="topbar-right">
+      <div class="threat-pill" id="threat-pill">
+        <span class="pulse-dot"></span>
+        <span id="threat-text">No Threats</span>
+      </div>
+      <div class="time-display" id="clock"></div>
+      <button class="btn btn-primary" id="start-btn">▶ Start System</button>
+      <button class="btn btn-danger hidden" id="stop-btn">⏹ Stop</button>
+    </div>
+  </header>
+
+  <!-- ── PAGE: DASHBOARD ────────────────────────────────────────────────── -->
+  <section class="page active" id="page-dashboard">
+
+    <!-- Stat Cards -->
+    <div class="stats-grid">
+      <div class="stat-card" id="card-fps">
+        <div class="stat-icon">🎥</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-fps">0</div>
+          <div class="stat-label">FPS</div>
+        </div>
+        <div class="stat-ring fps-ring"></div>
+      </div>
+      <div class="stat-card" id="card-persons">
+        <div class="stat-icon">👤</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-persons">0</div>
+          <div class="stat-label">Persons Detected</div>
+        </div>
+      </div>
+      <div class="stat-card" id="card-alerts">
+        <div class="stat-icon">🚨</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-alerts">0</div>
+          <div class="stat-label">Alerts Today</div>
+        </div>
+      </div>
+      <div class="stat-card" id="card-uptime">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-uptime">--:--:--</div>
+          <div class="stat-label">System Uptime</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detection Panels -->
+    <div class="detection-grid">
+      <div class="detect-card" id="dc-violence">
+        <div class="detect-header">
+          <span class="detect-icon">⚔️</span>
+          <span class="detect-title">Violence Detection</span>
+          <span class="detect-badge safe" id="badge-violence">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap">
+          <div class="detect-bar" id="bar-violence"></div>
+        </div>
+        <div class="detect-score" id="score-violence">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-gesture">
+        <div class="detect-header">
+          <span class="detect-icon">✋</span>
+          <span class="detect-title">SOS Gesture</span>
+          <span class="detect-badge safe" id="badge-gesture">CLEAR</span>
+        </div>
+        <div class="detect-bar-wrap">
+          <div class="detect-bar" id="bar-gesture"></div>
+        </div>
+        <div class="detect-score" id="score-gesture">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-loiter">
+        <div class="detect-header">
+          <span class="detect-icon">🕵️</span>
+          <span class="detect-title">Suspicious Loitering</span>
+          <span class="detect-badge safe" id="badge-loiter">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap">
+          <div class="detect-bar" id="bar-loiter"></div>
+        </div>
+        <div class="detect-score" id="score-loiter">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-panic">
+        <div class="detect-header">
+          <span class="detect-icon">🏃</span>
+          <span class="detect-title">Panic / Running</span>
+          <span class="detect-badge safe" id="badge-panic">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap">
+          <div class="detect-bar" id="bar-panic"></div>
+        </div>
+        <div class="detect-score" id="score-panic">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-thief">
+        <div class="detect-header">
+          <span class="detect-icon">🕵️</span>
+          <span class="detect-title">Known Thief Face</span>
+          <span class="detect-badge safe" id="badge-thief">CLEAR</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-thief"></div></div>
+        <div class="detect-score" id="score-thief">0.0%</div>
+        <div class="detect-sub" id="thief-match-name"></div>
+      </div>
+
+      <div class="detect-card" id="dc-facecover">
+        <div class="detect-header">
+          <span class="detect-icon">😷</span>
+          <span class="detect-title">Face Covered / Masked</span>
+          <span class="detect-badge safe" id="badge-facecover">CLEAR</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-facecover"></div></div>
+        <div class="detect-score" id="score-facecover">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-sharp">
+        <div class="detect-header">
+          <span class="detect-icon">🔪</span>
+          <span class="detect-title">Sharp Object (YOLO)</span>
+          <span class="detect-badge safe" id="badge-sharp">CLEAR</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-sharp"></div></div>
+        <div class="detect-score" id="score-sharp">0.0%</div>
+        <div class="detect-sub" id="sharp-object-label"></div>
+      </div>
+
+      <div class="detect-card" id="dc-pose-fighting">
+        <div class="detect-header">
+          <span class="detect-icon">!</span>
+          <span class="detect-title">Pose: Fighting / Violence</span>
+          <span class="detect-badge safe" id="badge-pose-fighting">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-pose-fighting"></div></div>
+        <div class="detect-score" id="score-pose-fighting">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-pose-kidnapping">
+        <div class="detect-header">
+          <span class="detect-icon">!</span>
+          <span class="detect-title">Pose: Kidnapping Attempt</span>
+          <span class="detect-badge safe" id="badge-pose-kidnapping">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-pose-kidnapping"></div></div>
+        <div class="detect-score" id="score-pose-kidnapping">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-pose-harassment">
+        <div class="detect-header">
+          <span class="detect-icon">!</span>
+          <span class="detect-title">Pose: Harassment Risk</span>
+          <span class="detect-badge safe" id="badge-pose-harassment">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-pose-harassment"></div></div>
+        <div class="detect-score" id="score-pose-harassment">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-pose-chasing">
+        <div class="detect-header">
+          <span class="detect-icon">></span>
+          <span class="detect-title">Pose: Person Chasing</span>
+          <span class="detect-badge safe" id="badge-pose-chasing">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-pose-chasing"></div></div>
+        <div class="detect-score" id="score-pose-chasing">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-pose-child-fall">
+        <div class="detect-header">
+          <span class="detect-icon">v</span>
+          <span class="detect-title">Pose: Child Crying / Falling</span>
+          <span class="detect-badge safe" id="badge-pose-child-fall">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-pose-child-fall"></div></div>
+        <div class="detect-score" id="score-pose-child-fall">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-pose-weapon-carry">
+        <div class="detect-header">
+          <span class="detect-icon">|</span>
+          <span class="detect-title">Pose: Weapon Carry Posture</span>
+          <span class="detect-badge safe" id="badge-pose-weapon-carry">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-pose-weapon-carry"></div></div>
+        <div class="detect-score" id="score-pose-weapon-carry">0.0%</div>
+      </div>
+
+      <div class="detect-card" id="dc-pose-crowd-anomaly">
+        <div class="detect-header">
+          <span class="detect-icon">#</span>
+          <span class="detect-title">Pose: Unusual Crowd Behavior</span>
+          <span class="detect-badge safe" id="badge-pose-crowd-anomaly">SAFE</span>
+        </div>
+        <div class="detect-bar-wrap"><div class="detect-bar" id="bar-pose-crowd-anomaly"></div></div>
+        <div class="detect-score" id="score-pose-crowd-anomaly">0.0%</div>
+      </div>
+    </div>
+
+    <!-- Latest Alert -->
+    <div class="last-alert-card" id="last-alert-card">
+      <h3>🔔 Latest Alert</h3>
+      <div id="last-alert-content" class="no-alert">No alerts yet – system is monitoring</div>
+    </div>
+  </section>
+
+  <!-- ── PAGE: LIVE MONITOR ─────────────────────────────────────────────── -->
+  <section class="page" id="page-live">
+    <div class="live-container">
+      <div class="video-wrapper">
+        <div class="video-header">
+          <span class="live-dot" id="live-indicator"></span>
+          <span id="live-status-text">Camera Offline</span>
+          <span class="video-fps" id="video-fps">0 FPS</span>
+        </div>
+        <div class="video-frame" id="video-frame">
+          <img id="video-feed" src="" alt="Live Feed" class="hidden"/>
+          <div class="video-placeholder" id="video-placeholder">
+            <div class="placeholder-icon">📷</div>
+            <p>Start the system to view live feed</p>
+            <button class="btn btn-primary" id="start-btn-live">▶ Start Monitoring</button>
+          </div>
+        </div>
+        <div class="video-overlay-bar" id="threat-bar" style="display:none">
+          <span id="threat-bar-text">⚠ Threat Detected</span>
+        </div>
+      </div>
+
+      <div class="live-sidebar">
+        <div class="live-info-card">
+          <h4>📊 Real-time Stats</h4>
+          <div class="info-row"><span>Persons</span><strong id="live-persons">0</strong></div>
+          <div class="info-row"><span>Motion</span><strong id="live-motion">0%</strong></div>
+          <div class="info-row"><span>Flow</span><strong id="live-flow">0.0</strong></div>
+          <div class="info-row"><span>Hands</span><strong id="live-hands">0</strong></div>
+        </div>
+        <div class="live-info-card">
+          <h4>🎛️ Controls</h4>
+          <button class="btn btn-outline full-width" id="snapshot-btn">📸 Capture Snapshot</button>
+          <button class="btn btn-warning full-width mt-8" id="test-alarm-btn">🔔 Test ESP32 Alarm</button>
+          <button class="btn btn-danger full-width mt-8" id="silence-btn">🔇 Silence Alarm</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PAGE: THIEF DATABASE ───────────────────────────────────────────── -->
+  <section class="page" id="page-thieves">
+    <div class="thieves-layout">
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="settings-icon">🕵️</span>
+          <div>
+            <h3>Register Known Thief</h3>
+            <p>Upload a clear front-facing photo. The system uses face ML (YuNet + SFace) to match on camera.</p>
+          </div>
+        </div>
+        <form id="thief-enroll-form" class="form-grid">
+          <div class="form-group">
+            <label for="thief-name">Full Name *</label>
+            <input type="text" id="thief-name" class="form-input" placeholder="Suspect name" required/>
+          </div>
+          <div class="form-group">
+            <label for="thief-alias">Alias / Nickname</label>
+            <input type="text" id="thief-alias" class="form-input" placeholder="Optional alias"/>
+          </div>
+          <div class="form-group full-span">
+            <label for="thief-crime">Crime / Case Details</label>
+            <textarea id="thief-crime" class="form-input form-textarea" rows="2" placeholder="Theft date, location, case ID..."></textarea>
+          </div>
+          <div class="form-group full-span">
+            <label for="thief-notes">Notes</label>
+            <textarea id="thief-notes" class="form-input form-textarea" rows="2" placeholder="Additional notes"></textarea>
+          </div>
+          <div class="form-group full-span">
+            <label for="thief-photo">Face Photo *</label>
+            <input type="file" id="thief-photo" class="form-input" accept="image/*" required/>
+          </div>
+          <div class="form-group full-span">
+            <button type="submit" class="btn btn-primary" id="thief-submit-btn">➕ Add to Thief Database</button>
+            <span class="test-result" id="thief-enroll-result"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="settings-icon">📋</span>
+          <div>
+            <h3>Enrolled Profiles</h3>
+            <p>Stored in <code>data/thieves/</code></p>
+          </div>
+        </div>
+        <div class="thieves-list" id="thieves-list">
+          <div class="empty-state"><div class="empty-icon">🕵️</div><p>No thieves enrolled yet</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PAGE: SUSPICIOUS HISTORY (with photos) ─────────────────────────── -->
+  <section class="page" id="page-history">
+    <div class="alerts-toolbar">
+      <h2>Suspicious Activity History</h2>
+      <p class="toolbar-sub">Photos and clips saved to <code>data/suspicious_captures/</code> when the camera detects a threat.</p>
+      <button class="btn btn-outline" id="refresh-history-btn">🔄 Refresh</button>
+    </div>
+    <div class="incidents-grid" id="incidents-grid">
+      <div class="empty-state">
+        <div class="empty-icon">📷</div>
+        <p>No suspicious captures yet — start monitoring to record incidents</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PAGE: ALERT HISTORY ────────────────────────────────────────────── -->
+  <section class="page" id="page-alerts">
+    <div class="alerts-toolbar">
+      <h2>Alert History</h2>
+      <div class="filter-row">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="email">Email</button>
+        <button class="filter-btn" data-filter="sms">SMS</button>
+        <button class="filter-btn" data-filter="call">Call</button>
+      </div>
+    </div>
+    <div class="alerts-list" id="alerts-list">
+      <div class="empty-state">
+        <div class="empty-icon">🔔</div>
+        <p>No alerts recorded yet</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PAGE: SETTINGS ────────────────────────────────────────────────── -->
+  <section class="page" id="page-settings">
+    <div class="settings-container">
+
+      <!-- Gmail -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="settings-icon">📧</span>
+          <div>
+            <h3>Gmail Email Alerts</h3>
+            <p>Configure Gmail to send emergency email notifications with snapshots</p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="gmail-sender">Sender Gmail Address</label>
+            <input type="email" id="gmail-sender" class="form-input" placeholder="youremail@gmail.com"/>
+          </div>
+          <div class="form-group">
+            <label for="gmail-password">App Password <a href="https://myaccount.google.com/apppasswords" target="_blank" class="help-link">Get App Password ↗</a></label>
+            <input type="password" id="gmail-password" class="form-input" placeholder="16-character Gmail App Password"/>
+          </div>
+          <div class="form-group full-span">
+            <label for="gmail-recipient">Alert Recipient Email</label>
+            <input type="email" id="gmail-recipient" class="form-input" placeholder="guardian@example.com"/>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button class="btn btn-outline" id="test-email-btn">📧 Send Test Email</button>
+          <span class="test-result" id="test-email-result"></span>
+        </div>
+      <div class="settings-card">
+  <div class="settings-card-header">
+    <span class="settings-icon">🔔</span>
+    <div>
+      <h3>Discord Webhook Alerts</h3>
+      <p>Configure a Discord webhook URL to receive real‑time alerts.</p>
+    </div>
+  </div>
+  <div class="form-grid">
+    <div class="form-group full-span">
+      <label for="discord-webhook">Webhook URL</label>
+      <input type="text" id="discord-webhook" class="form-input" placeholder="https://discord.com/api/webhooks/..."/>
+    </div>
+  </div>
+</div>
+
+      <!-- Phone / Twilio -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="settings-icon">📱</span>
+          <div>
+            <h3>Phone Alerts (SMS & Calls)</h3>
+            <p>Configure Twilio for SMS messages and automated voice calls</p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="twilio-sid">Twilio Account SID</label>
+            <input type="text" id="twilio-sid" class="form-input" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"/>
+          </div>
+          <div class="form-group">
+            <label for="twilio-token">Auth Token</label>
+            <input type="password" id="twilio-token" class="form-input" placeholder="Your Twilio Auth Token"/>
+          </div>
+          <div class="form-group">
+            <label for="twilio-from">Twilio Phone Number</label>
+            <input type="text" id="twilio-from" class="form-input" placeholder="+1XXXXXXXXXX"/>
+          </div>
+          <div class="form-group">
+            <label for="twilio-to">Alert Phone Number</label>
+            <input type="text" id="twilio-to" class="form-input" placeholder="+91XXXXXXXXXX"/>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button class="btn btn-outline" id="test-sms-btn">📱 Send Test SMS</button>
+          <span class="test-result" id="test-sms-result"></span>
+          <button class="btn btn-outline" id="test-call-btn">📞 Send Test Call</button>
+          <span class="test-result" id="test-call-result"></span>
+        </div>
+      </div>
+
+      <!-- Detection Settings -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="settings-icon">🧠</span>
+          <div>
+            <h3>AI Detection Settings</h3>
+            <p>Tune detection thresholds and sensitivity</p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="violence-thresh">Violence Threshold: <strong id="vt-val">75%</strong></label>
+            <input type="range" id="violence-thresh" min="40" max="95" value="75" class="range-input"/>
+          </div>
+          <div class="form-group">
+            <label for="gesture-conf">Gesture Confidence: <strong id="gc-val">80%</strong></label>
+            <input type="range" id="gesture-conf" min="50" max="95" value="80" class="range-input"/>
+          </div>
+          <div class="form-group">
+            <label for="pose-thresh">Pose Safety Threshold: <strong id="pt-val">68%</strong></label>
+            <input type="range" id="pose-thresh" min="45" max="95" value="68" class="range-input"/>
+          </div>
+          <div class="form-group">
+            <label for="sensitivity">Suspicious Activity Sensitivity</label>
+            <select id="sensitivity" class="form-input">
+              <option value="low">Low (Fewer false positives)</option>
+              <option value="medium" selected>Medium (Balanced)</option>
+              <option value="high">High (More sensitive)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cooldown">Alert Cooldown: <strong id="cd-val">30s</strong></label>
+            <input type="range" id="cooldown" min="10" max="120" value="30" class="range-input"/>
+          </div>
+          <div class="form-group">
+            <label for="face-match-thresh">Thief Face Match: <strong id="fm-val">45%</strong></label>
+            <input type="range" id="face-match-thresh" min="30" max="80" value="45" class="range-input"/>
+          </div>
+          <div class="form-group">
+            <label for="face-cover-thresh">Face Cover Sensitivity: <strong id="fc-val">55%</strong></label>
+            <input type="range" id="face-cover-thresh" min="35" max="85" value="55" class="range-input"/>
+          </div>
+          <div class="form-group">
+            <label for="object-conf">Sharp Object Confidence: <strong id="oc-val">45%</strong></label>
+            <input type="range" id="object-conf" min="25" max="85" value="45" class="range-input"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera Settings -->
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <span class="settings-icon">📷</span>
+          <div>
+            <h3>Camera Configuration</h3>
+            <p>Set camera source (index or RTSP URL)</p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="cam-source">Camera Source</label>
+            <input type="text" id="cam-source" class="form-input" placeholder="0 (webcam) or rtsp://..."/>
+          </div>
+          <div class="form-group">
+            <label for="cam-width">Resolution Width</label>
+            <input type="number" id="cam-width" class="form-input" placeholder="640"/>
+          </div>
+          <div class="form-group">
+            <label for="cam-height">Resolution Height</label>
+            <input type="number" id="cam-height" class="form-input" placeholder="480"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <button class="btn btn-primary btn-large" id="save-settings-btn">💾 Save All Settings</button>
+        <span class="save-result" id="save-result"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PAGE: ESP32 CONTROL ────────────────────────────────────────────── -->
+  <section class="page" id="page-esp32">
+    <div class="esp-container">
+      <div class="esp-status-card">
+        <div class="esp-icon">🔌</div>
+        <div class="esp-info">
+          <h3>ESP32 Microcontroller</h3>
+          <div class="esp-status-row">
+            <span class="status-dot" id="esp-card-dot"></span>
+            <span id="esp-card-status">Checking...</span>
+          </div>
+          <p class="esp-host" id="esp-host-label">Host: --</p>
+        </div>
+        <button class="btn btn-outline" id="ping-esp-btn">🔄 Ping</button>
+      </div>
+
+      <div class="esp-controls-grid">
+        <button class="esp-action-btn warning" id="esp-alarm-btn">
+          <span class="esp-btn-icon">🔔</span>
+          <span>Trigger Alarm</span>
+        </button>
+        <button class="esp-action-btn danger" id="esp-critical-btn">
+          <span class="esp-btn-icon">🚨</span>
+          <span>Critical Alert</span>
+        </button>
+        <button class="esp-action-btn success" id="esp-silence-btn">
+          <span class="esp-btn-icon">🔇</span>
+          <span>Silence Alarm</span>
+        </button>
+        <button class="esp-action-btn info" id="esp-led-normal-btn">
+          <span class="esp-btn-icon">💚</span>
+          <span>LED Normal</span>
+        </button>
+        <button class="esp-action-btn warning" id="esp-led-warn-btn">
+          <span class="esp-btn-icon">🟡</span>
+          <span>LED Warning</span>
+        </button>
+        <button class="esp-action-btn danger" id="esp-led-crit-btn">
+          <span class="esp-btn-icon">🔴</span>
+          <span>LED Critical</span>
+        </button>
+      </div>
+
+      <div class="esp-config-card">
+        <h4>ESP32 Network Settings</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="esp-host">ESP32 IP Address</label>
+            <input type="text" id="esp-host" class="form-input" placeholder="192.168.1.100"/>
+          </div>
+          <div class="form-group">
+            <label for="esp-port">Port</label>
+            <input type="number" id="esp-port" class="form-input" placeholder="80"/>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <label class="toggle-label">Enable ESP32 Integration</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="esp-enabled" checked/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-primary mt-8" id="save-esp-btn">Save ESP32 Config</button>
+      </div>
+
+      <div class="esp-log-card">
+        <h4>Command Log</h4>
+        <div class="command-log" id="esp-cmd-log">
+          <div class="log-empty">No commands sent yet</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── THREAT ALERT OVERLAY ─────────────────────────────────────────────── -->
+<div class="threat-overlay hidden" id="threat-overlay">
+  <div class="threat-modal">
+    <div class="threat-modal-icon">🚨</div>
+    <h2 id="threat-modal-title">THREAT DETECTED</h2>
+    <p id="threat-modal-body">Violence Detected – Emergency alerts sent!</p>
+    <img id="threat-modal-image" class="threat-modal-image hidden" alt="Capture"/>
+    <div class="threat-modal-meta">
+      <span id="threat-modal-conf"></span>
+      <span id="threat-modal-time"></span>
+    </div>
+    <button class="btn btn-danger" id="dismiss-overlay-btn">Acknowledge</button>
+  </div>
+</div>
+
+<footer class="apex-footer">SafeGuard AI Surveillance · Made by <strong>Team APEX</strong></footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>

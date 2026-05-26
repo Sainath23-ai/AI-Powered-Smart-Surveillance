@@ -1,0 +1,45 @@
+{
+  "gmail": {
+    "sender_email": "REDACTED",
+    "sender_password": "REDACTED",
+    "recipient_email": "REDACTED"
+  },
+  "phone": {
+    "twilio_account_sid": "REDACTED",
+    "twilio_auth_token": "REDACTED",
+    "twilio_phone_number": "REDACTED",
+    "recipient_phone_number": "REDACTED"
+  },
+  "esp32": {
+    "host": "192.168.1.100",
+    "port": 80,
+    "enabled": true
+  },
+  "detection": {
+    "violence_threshold": 0.75,
+    "gesture_confidence": 0.8,
+    "pose_safety_threshold": 0.68,
+    "suspicious_sensitivity": "medium",
+    "alert_cooldown_seconds": 30,
+    "face_match_threshold": 0.45,
+    "face_cover_threshold": 0.55,
+    "object_confidence": 0.45
+  },
+  "camera": {
+    "source": "0",
+    "width": 640,
+    "height": 480,
+    "fps": 30
+  },
+  "huggingface": {
+    "api_key": "REDACTED",
+    "model_url": "https://api-inference.huggingface.co/models/Ahmed766/computer-vision-demo"
+  },
+  "telegram": {
+    "bot_token": "",
+    "chat_id": ""
+  },
+  "discord": {
+    "webhook_url": "REDACTED"
+  }
+}
