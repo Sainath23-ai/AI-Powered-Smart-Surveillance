@@ -424,8 +424,12 @@
             <input type="email" id="gmail-sender" class="form-input" placeholder="youremail@gmail.com"/>
           </div>
           <div class="form-group">
-            <label for="gmail-password">App Password <a href="https://myaccount.google.com/apppasswords" target="_blank" class="help-link">Get App Password ↗</a></label>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+              <label for="gmail-password" style="margin:0;">App Password</label>
+              <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="help-link" onclick="event.stopPropagation();">Get App Password ↗</a>
+            </div>
             <input type="password" id="gmail-password" class="form-input" placeholder="16-character Gmail App Password"/>
+            <span class="form-help-text">⚠ <strong>First:</strong> Enable <strong>2-Step Verification</strong> on your Google account — the link above won't open without it.</span>
           </div>
           <div class="form-group full-span">
             <label for="gmail-recipient">Alert Recipient Email</label>

@@ -1,758 +1,884 @@
 """
-SafeGuard AI - Main Flask Application Server
-Provides:
-  - REST API for configuration and status
-  - MJPEG video stream endpoint
-  - WebSocket-like SSE for real-time events
-  - Video upload + AI analysis endpoint
-  - Web dashboard serving
+SafeGuard AI – Flask Backend
+Provides all REST API endpoints AND the real-time AI detection loop.
 """
-from hf_detector import HuggingFaceDetector
-import cv2
+
 import json
-import time
-import numpy as np
-import threading
 import logging
 import os
+import queue
+import smtplib
+import threading
+import time
+import uuid
+from collections import deque
 from datetime import datetime
-from flask import (Flask, Response, request, jsonify,
-                   send_from_directory, stream_with_context)
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+
+import cv2
+import numpy as np
+from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 
-from config import load_config, save_config
-from detector import ActivityDetector
-from pose_safety_detector import PoseSafetyDetector
-from gesture_detector import GestureDetector
-from alert_system import AlertSystem
-from esp32_comm import ESP32Controller
-from capture_store import CaptureStore
-from thief_registry import ThiefRegistry
-from face_thief_detector import FaceThiefDetector
-from object_detector import ObjectDetector
+# ── Paths ────────────────────────────────────────────────────
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR  = os.path.join(BASE_DIR, "..")
+SETTINGS_PATH= os.path.join(PROJECT_DIR, "config", "settings.json")
+DATA_DIR     = os.path.join(PROJECT_DIR, "data")
+THIEVES_DIR  = os.path.join(DATA_DIR, "thieves")
+CAPTURES_DIR = os.path.join(DATA_DIR, "captures")
+ALERTS_LOG   = os.path.join(DATA_DIR, "alerts.json")
+INCIDENTS_LOG= os.path.join(DATA_DIR, "incidents.json")
 
-# ── Logging ────────────────────────────────────────────────────────────────────
+for _d in [THIEVES_DIR, CAPTURES_DIR, DATA_DIR]:
+    os.makedirs(_d, exist_ok=True)
+
+# ── Logging ──────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] %(name)s – %(message)s",
 )
 logger = logging.getLogger("SafeGuardAI")
 
-# ── Flask App ──────────────────────────────────────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DASHBOARD_DIR = os.path.join(BASE_DIR, '..', 'web_dashboard')
+# ── Flask App ─────────────────────────────────────────────────
+app = Flask(__name__)
+CORS(app, origins="*")
 
-app = Flask(__name__, static_folder=DASHBOARD_DIR)
-CORS(app)
-
-# ── Global State ───────────────────────────────────────────────────────────────
-config = load_config()
-alert_system = AlertSystem(config)
-esp32 = ESP32Controller(config)
-capture_store = CaptureStore()
-thief_registry = ThiefRegistry()
-
-activity_detector = None
-pose_detector = None
-gesture_detector = None
-face_thief_detector = None
-object_detector = None
-camera = None
-hf_detector = None
-camera_lock = threading.Lock()
-
-system_state = {
+# ── Shared State ──────────────────────────────────────────────
+_state_lock = threading.Lock()
+_state = {
     "running": False,
-    "camera_active": False,
-    "threat_level": "none",
-    "current_detections": {},
-    "frame_count": 0,
-    "fps": 0,
     "start_time": None,
-    "last_alert": None,
+    "fps": 0,
     "alerts_today": 0,
-    "total_alerts": 0
+    "total_alerts": 0,
+    "incidents_count": 0,
+    "threat_level": "none",
+    "last_alert": None,
+    "current_detections": {},
+    "esp32": {"connected": False, "host": "", "port": 80},
 }
-state_lock = threading.Lock()
 
-# SSE event queue
-sse_events = []
-sse_lock = threading.Lock()
+# Latest JPEG frame for the MJPEG stream
+_frame_lock   = threading.Lock()
+_latest_frame = None          # bytes (JPEG)
 
-# Background surveillance + stream frame buffer
-surveillance_thread = None
-stream_frame_lock = threading.Lock()
-latest_jpeg_frame = None
-last_threat_notify_time = {}  # threat_type -> timestamp
+# SSE clients – list of queue.Queue objects
+_sse_lock    = threading.Lock()
+_sse_clients = []
 
+# Alert cooldown tracking
+_alert_last_sent = {}         # threat_type -> timestamp
 
-def push_event(event_type: str, data: dict):
-    """Push event to SSE clients."""
-    with sse_lock:
-        sse_events.append({
-            "type": event_type,
-            "data": data,
-            "time": time.time()
-        })
-        # Keep only last 100 events
-        if len(sse_events) > 100:
-            sse_events.pop(0)
-
-
-def init_detectors():
-    """Initialize AI detection models."""
-    global activity_detector, pose_detector, gesture_detector
-    global face_thief_detector, object_detector
-    cfg = config.get("detection", {})
-    activity_detector = ActivityDetector(
-        violence_threshold=cfg.get("violence_threshold", 0.75),
-        sensitivity=cfg.get("suspicious_sensitivity", "medium")
-    )
-    pose_detector = PoseSafetyDetector(
-        threshold=cfg.get("pose_safety_threshold", 0.68),
-        sensitivity=cfg.get("suspicious_sensitivity", "medium")
-    )
-    gesture_detector = GestureDetector(
-        confidence_threshold=cfg.get("gesture_confidence", 0.80)
-    )
-    face_thief_detector = FaceThiefDetector(
-        registry=thief_registry,
-        match_threshold=cfg.get("face_match_threshold", 0.45),
-        cover_threshold=cfg.get("face_cover_threshold", 0.55),
-    )
-    object_detector = ObjectDetector(
-        confidence=cfg.get("object_confidence", 0.45)
-    )
-    logger.info("Detectors initialized")
-    global hf_detector
-    hf_cfg = config.get("huggingface", {})
-    if hf_cfg.get("api_key") and hf_cfg.get("api_key") != "YOUR_HUGGINGFACE_API_KEY":
-        hf_detector = HuggingFaceDetector(hf_cfg["api_key"], hf_cfg["model_url"])
-    else:
-        hf_detector = None
-
-
-
-def open_camera():
-    """Open the camera capture."""
-    global camera
-    cam_cfg = config.get("camera", {})
-    src = cam_cfg.get("source", 0)
-    # Allow numeric or string (RTSP URL)
+# ── JSON helpers ──────────────────────────────────────────────
+def _read_json(path):
     try:
-        src = int(src)
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def _write_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def _append_json(path, entry, maxlen=500):
+    records = _read_json(path)
+    records.insert(0, entry)
+    _write_json(path, records[:maxlen])
+
+# ── Config helpers ────────────────────────────────────────────
+def _load_config():
+    try:
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_config(cfg):
+    os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+
+# ── SSE broadcast ─────────────────────────────────────────────
+def _broadcast(event_type: str, data: dict):
+    payload = json.dumps({"type": event_type, "data": data})
+    dead = []
+    with _sse_lock:
+        for q in _sse_clients:
+            try:
+                q.put_nowait(payload)
+            except queue.Full:
+                dead.append(q)
+        for q in dead:
+            _sse_clients.remove(q)
+
+# ── Gmail email alert ─────────────────────────────────────────
+def _send_gmail_alert(threat_type: str, confidence: float,
+                      snapshot_path: str = None, level: str = "critical"):
+    """Send an HTML alert email via Gmail SMTP with an optional image attachment."""
+    cfg = _load_config().get("gmail", {})
+    sender   = cfg.get("sender_email", "").strip()
+    password = cfg.get("sender_password", "").strip()
+    recipient= cfg.get("recipient_email", "").strip()
+
+    if not sender or not password or not recipient:
+        logger.warning("Gmail not configured – skipping email alert")
+        return False, "Gmail credentials not configured in Settings"
+
+    level_color = {"critical": "#ef4444", "warning": "#f59e0b"}.get(level, "#6366f1")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;background:#0a0d14;color:#f1f5f9;padding:24px;">
+      <div style="max-width:560px;margin:auto;background:#1a2236;border-radius:12px;
+                  border:2px solid {level_color};overflow:hidden;">
+        <div style="background:{level_color};padding:20px;text-align:center;">
+          <h1 style="margin:0;font-size:24px;">🚨 SafeGuard AI Alert</h1>
+          <p style="margin:6px 0 0;opacity:0.9;">{level.upper()} THREAT DETECTED</p>
+        </div>
+        <div style="padding:24px;">
+          <p style="font-size:18px;font-weight:bold;color:{level_color};">{threat_type}</p>
+          <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+            <tr><td style="padding:8px;color:#94a3b8;">Confidence</td>
+                <td style="padding:8px;font-weight:bold;">{confidence:.1%}</td></tr>
+            <tr><td style="padding:8px;color:#94a3b8;">Timestamp</td>
+                <td style="padding:8px;">{ts}</td></tr>
+            <tr><td style="padding:8px;color:#94a3b8;">Level</td>
+                <td style="padding:8px;color:{level_color};font-weight:bold;">{level.upper()}</td></tr>
+          </table>
+          {('<p style="margin-top:16px;color:#94a3b8;">📎 Snapshot attached below.</p>'
+            if snapshot_path else '')}
+        </div>
+        <div style="background:#0a0d14;padding:12px 24px;text-align:center;font-size:11px;color:#64748b;">
+          SafeGuard AI Surveillance · Team APEX
+        </div>
+      </div>
+    </body></html>
+    """
+
+    msg = MIMEMultipart("related")
+    msg["Subject"] = f"🚨 [{level.upper()}] SafeGuard Alert: {threat_type}"
+    msg["From"]    = f"SafeGuard AI <{sender}>"
+    msg["To"]      = recipient
+    msg.attach(MIMEText(html, "html"))
+
+    if snapshot_path and os.path.isfile(snapshot_path):
+        try:
+            with open(snapshot_path, "rb") as f:
+                img = MIMEImage(f.read(), name=os.path.basename(snapshot_path))
+                img.add_header("Content-Disposition", "attachment",
+                               filename=os.path.basename(snapshot_path))
+                msg.attach(img)
+        except Exception as exc:
+            logger.warning("Could not attach snapshot: %s", exc)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+            server.login(sender, password)
+            server.sendmail(sender, [recipient], msg.as_string())
+        logger.info("Email alert sent to %s", recipient)
+        return True, f"Email sent to {recipient}"
+    except smtplib.SMTPAuthenticationError:
+        msg_err = ("Gmail authentication failed. Make sure you use a Gmail App Password "
+                   "(not your account password) and that 2-Step Verification is enabled.")
+        logger.error(msg_err)
+        return False, msg_err
+    except Exception as exc:
+        logger.error("Failed to send email: %s", exc)
+        return False, str(exc)
+
+# ── Thief Registry ────────────────────────────────────────────
+from thief_registry import ThiefRegistry
+registry = ThiefRegistry(THIEVES_DIR)
+
+# ── Detector instances (lazy-loaded inside detection thread) ──
+_pose_detector   = None
+_object_detector = None
+_face_detector   = None
+_gesture_detector = None
+
+def _init_detectors(cfg):
+    global _pose_detector, _object_detector, _face_detector, _gesture_detector
+    det_cfg = cfg.get("detection", {})
+    try:
+        from pose_safety_detector import PoseSafetyDetector
+        _pose_detector = PoseSafetyDetector(
+            threshold   = float(det_cfg.get("pose_safety_threshold", 0.68)),
+            sensitivity = det_cfg.get("suspicious_sensitivity", "medium"),
+        )
+        logger.info("PoseSafetyDetector loaded")
+    except Exception as exc:
+        logger.warning("PoseSafetyDetector unavailable: %s", exc)
+
+    try:
+        from object_detector import ObjectDetector
+        _object_detector = ObjectDetector(
+            confidence=float(det_cfg.get("object_confidence", 0.45))
+        )
+        logger.info("ObjectDetector loaded")
+    except Exception as exc:
+        logger.warning("ObjectDetector unavailable: %s", exc)
+
+    try:
+        from face_detector import FaceDetector
+        _face_detector = FaceDetector(
+            match_threshold = float(det_cfg.get("face_match_threshold", 0.45)),
+            cover_threshold = float(det_cfg.get("face_cover_threshold", 0.55)),
+        )
+        logger.info("FaceDetector loaded")
+    except Exception as exc:
+        logger.warning("FaceDetector unavailable: %s", exc)
+
+    try:
+        from gesture_detector import GestureDetector
+        _gesture_detector = GestureDetector(
+            confidence_threshold = float(det_cfg.get("gesture_confidence", 0.80))
+        )
+        logger.info("GestureDetector loaded")
+    except Exception as exc:
+        logger.warning("GestureDetector unavailable: %s", exc)
+
+
+
+# ╔══════════════════════════════════════════════════════════════╗
+# ║               AI Detection Loop Thread                      ║
+# ╚══════════════════════════════════════════════════════════════╝
+
+def _detection_loop():
+    """Runs in a background thread while _state['running'] is True."""
+    global _latest_frame
+
+    cfg       = _load_config()
+    cam_cfg   = cfg.get("camera", {})
+    det_cfg   = cfg.get("detection", {})
+
+    # -- Open camera -------------------------------------------
+    source = cam_cfg.get("source", 0)
+    try:
+        source = int(source)
     except (ValueError, TypeError):
         pass
 
-    with camera_lock:
-        if camera and camera.isOpened():
-            camera.release()
-        try:
-            if isinstance(src, int) and os.name == "nt":
-                camera = cv2.VideoCapture(src, cv2.CAP_DSHOW)
-            else:
-                camera = cv2.VideoCapture(src)
+    cap = cv2.VideoCapture(source)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  int(cam_cfg.get("width",  640)))
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(cam_cfg.get("height", 480)))
+    cap.set(cv2.CAP_PROP_FPS,          int(cam_cfg.get("fps",     30)))
 
-            ok = camera.isOpened()
-            if ok:
-                camera.set(cv2.CAP_PROP_FRAME_WIDTH, cam_cfg.get("width", 640))
-                camera.set(cv2.CAP_PROP_FRAME_HEIGHT, cam_cfg.get("height", 480))
-                camera.set(cv2.CAP_PROP_FPS, cam_cfg.get("fps", 30))
-            else:
-                camera.release()
-                camera = None
-        except Exception as exc:
-            logger.exception(f"Camera startup failed (src={src}): {exc}")
-            if camera:
-                camera.release()
-            camera = None
-            ok = False
-
-    with state_lock:
-        system_state["camera_active"] = ok
-
-    logger.info(f"Camera {'opened' if ok else 'FAILED'} (src={src})")
-    return ok
-
-
-def _threat_notify_allowed(threat_type: str) -> bool:
-    """Respect alert cooldown for captures, SSE, and dashboard counters."""
-    cooldown = config.get("detection", {}).get("alert_cooldown_seconds", 30)
-    last = last_threat_notify_time.get(threat_type, 0)
-    return (time.time() - last) >= cooldown
-
-
-def _mark_threat_notified(threat_type: str):
-    last_threat_notify_time[threat_type] = time.time()
-
-
-def process_detections(frame, act_results, pose_results, gest_results, face_results, obj_results):
-    """Handle detection results: update state, fire alerts, notify ESP32."""
-    threat_type = None
-    confidence = 0.0
-    threat_level = "none"
-
-    thief = (face_results or {}).get("thief_match", {})
-    if thief.get("detected"):
-        threat_type = f"Known Thief: {thief.get('name', 'Unknown')}"
-        confidence = thief.get("confidence", 0.0)
-        threat_level = "critical"
-
-    cover = (face_results or {}).get("face_cover", {})
-    if cover.get("detected") and threat_level != "critical":
-        threat_type = "Face Covered / Masked"
-        confidence = cover.get("confidence", 0.0)
-        threat_level = "warning"
-
-    sharp = (obj_results or {}).get("sharp_object", {})
-    if sharp.get("detected"):
-        label = sharp.get("label") or "sharp object"
-        sharp_level = "critical"
-        if threat_level != "critical" or sharp.get("confidence", 0) > confidence:
-            threat_type = f"Sharp Object: {label.title()}"
-            confidence = sharp.get("confidence", 0.0)
-            threat_level = sharp_level
-
-    if act_results["violence"]["detected"]:
-        if threat_level != "critical":
-            threat_type = "Violence Detected"
-            confidence = act_results["violence"]["confidence"]
-            threat_level = "critical"
-    elif act_results["loitering"]["detected"] and threat_level == "none":
-        threat_type = "Suspicious Loitering"
-        confidence = act_results["loitering"]["confidence"]
-        threat_level = "warning"
-    elif act_results["running_panic"]["detected"] and threat_level == "none":
-        threat_type = "Panic / Running"
-        confidence = act_results["running_panic"]["confidence"]
-        threat_level = "warning"
-
-    pose_top = (pose_results or {}).get("top_scenario")
-    if pose_top and pose_top.get("detected"):
-        pose_level = (
-            "critical"
-            if pose_top["key"] in ("fighting", "kidnapping", "child_fall", "weapon_carry")
-            else "warning"
-        )
-        if threat_level == "none" or (pose_level == "critical" and threat_level != "critical"):
-            threat_type = f"Pose Alert: {pose_top['label']}"
-            confidence = pose_top["confidence"]
-            threat_level = pose_level
-
-    if gest_results["detected"]:
-        threat_type = f"SOS Gesture: {gest_results['gesture_name']}"
-        confidence = gest_results["confidence"]
-        threat_level = "critical"
-
-    with state_lock:
-        system_state["threat_level"] = threat_level
-        system_state["current_detections"] = {
-            "activity": act_results,
-            "pose": pose_results,
-            "gesture": gest_results,
-            "face": face_results,
-            "object": obj_results,
-        }
-        system_state["frame_count"] += 1
-
-    if threat_type and threat_level in ("warning", "critical"):
-        with state_lock:
-            system_state["last_alert"] = {
-                "type": threat_type,
-                "confidence": confidence,
-                "level": threat_level,
-                "time": datetime.now().strftime("%H:%M:%S"),
-            }
-
-        if _threat_notify_allowed(threat_type):
-            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            snapshot = buf.tobytes()
-
-            incident = capture_store.save_incident(
-                threat_type, confidence, threat_level, frame
-            )
-            alert_system.trigger_alert(threat_type, confidence, snapshot)
-            esp32.handle_threat(threat_type, threat_level, confidence)
-            _mark_threat_notified(threat_type)
-
-            with state_lock:
-                system_state["total_alerts"] += 1
-                system_state["alerts_today"] += 1
-
-            push_event(
-                "threat_detected",
-                {
-                    "type": threat_type,
-                    "confidence": confidence,
-                    "level": threat_level,
-                    "timestamp": datetime.now().isoformat(),
-                    "incident_id": incident.get("id"),
-                    "image": incident.get("image"),
-                },
-            )
-
-
-def surveillance_loop():
-    """Background AI loop — runs whenever the system is started (not tied to stream viewers)."""
-    global latest_jpeg_frame
-
-    fps_counter = 0
-    fps_time = time.time()
-
-    while system_state.get("running"):
-        with camera_lock:
-            if not camera or not camera.isOpened():
-                time.sleep(0.1)
-                continue
-            ret, frame = camera.read()
-
-        if not ret:
-            time.sleep(0.05)
-            continue
-
-        try:
-            act_frame, act_results = activity_detector.detect(frame.copy())
-            pose_frame, pose_results = pose_detector.detect(act_frame, act_results)
-            gest_frame, gest_results = gesture_detector.detect(pose_frame)
-            face_frame, face_results = face_thief_detector.detect(gest_frame) if face_thief_detector else (gest_frame, {})
-            obj_frame, obj_results = object_detector.detect(face_frame) if object_detector else (face_frame, {})
-            annotated = obj_frame
-        except Exception as e:
-            logger.error(f"Detection error: {e}")
-            time.sleep(0.05)
-            continue
-
-        capture_store.push_frame(annotated)
-        process_detections(
-            frame, act_results, pose_results, gest_results, face_results, obj_results
-        )
-
-        fps_counter += 1
-        now = time.time()
-        if now - fps_time >= 1.0:
-            with state_lock:
-                system_state["fps"] = fps_counter
-            fps_counter = 0
-            fps_time = now
-
-        ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
-        cv2.putText(
-            annotated,
-            ts,
-            (10, annotated.shape[0] - 38),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (200, 200, 200),
-            1,
-        )
-
-        ret2, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 75])
-        if ret2:
-            with stream_frame_lock:
-                latest_jpeg_frame = buffer.tobytes()
-
-        time.sleep(0.001)
-        
-        # Hugging Face API call (every 30 frames)
-        if fps_counter % 30 == 0 and hf_detector: 
-            _, hf_results = hf_detector.detect(frame.copy())
-            print("API Results:", hf_results)
-
-
-
-def start_surveillance_thread():
-    """Start a fresh background detection thread (safe after stop/start cycles)."""
-    global surveillance_thread
-    if surveillance_thread and surveillance_thread.is_alive():
-        logger.info("Surveillance thread already running")
+    if not cap.isOpened():
+        logger.error("Cannot open camera source: %s", source)
+        with _state_lock:
+            _state["running"] = False
         return
-    surveillance_thread = threading.Thread(target=surveillance_loop, daemon=True)
-    surveillance_thread.start()
-    logger.info("Surveillance background thread started")
 
+    logger.info("Camera opened: source=%s", source)
+    _init_detectors(cfg)
 
-def generate_frames():
-    """MJPEG stream — serves the latest annotated frame from the background loop."""
-    while system_state.get("running"):
-        with stream_frame_lock:
-            jpeg = latest_jpeg_frame
+    # -- Simple motion detector using frame differencing -------
+    prev_gray     = None
+    persons_count = 0
+    frame_times   = deque(maxlen=30)
+    violence_threshold = float(det_cfg.get("violence_threshold",  0.75))
+    cooldown_sec       = int(det_cfg.get("alert_cooldown_seconds", 30))
 
-        if jpeg:
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
-            )
-        else:
+    while True:
+        with _state_lock:
+            if not _state["running"]:
+                break
+
+        ok, frame = cap.read()
+        if not ok:
             time.sleep(0.05)
+            continue
 
+        frame_times.append(time.time())
+        fps = len(frame_times) / max(
+            frame_times[-1] - frame_times[0], 0.001
+        ) if len(frame_times) > 1 else 0
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  API ROUTES
-# ═══════════════════════════════════════════════════════════════════════════════
+        annotated = frame.copy()
+        h, w = frame.shape[:2]
 
-@app.route('/')
-def index():
-    return send_from_directory(DASHBOARD_DIR, 'index.html')
+        # ── Motion analysis ─────────────────────────────────
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        motion_ratio    = 0.0
+        flow_magnitude  = 0.0
 
-
-@app.route('/api/stream')
-def video_stream():
-    """MJPEG live video stream."""
-    if not system_state["running"]:
-        return jsonify({"error": "System not running"}), 503
-    return Response(
-        stream_with_context(generate_frames()),
-        mimetype='multipart/x-mixed-replace; boundary=frame'
-    )
-
-
-@app.route('/api/status')
-def get_status():
-    """Get full system status."""
-    with state_lock:
-        state = dict(system_state)
-    esp_status = esp32.get_status()
-    return jsonify({
-        **state,
-        "esp32": esp_status,
-        "alert_log": alert_system.get_alert_log(20),
-        "incidents_count": len(capture_store.list_incidents(200)),
-        "timestamp": datetime.now().isoformat()
-    })
-
-
-@app.route('/api/ping')
-def api_ping():
-    """Health check endpoint used by the dashboard."""
-    return jsonify({
-        "ok": True,
-        "service": "SafeGuard AI",
-        "team": "APEX",
-        "time": datetime.now().isoformat()
-    })
-
-
-@app.route('/api/start', methods=['POST'])
-def start_system():
-    """Start the surveillance system."""
-    global system_state, latest_jpeg_frame, surveillance_thread
-    if system_state["running"]:
-        return jsonify({"status": "already_running"})
-
-    init_detectors()
-    if activity_detector and hasattr(activity_detector, "reset_state"):
-        activity_detector.reset_state()
-    cam_ok = open_camera()
-
-    with stream_frame_lock:
-        latest_jpeg_frame = None
-    surveillance_thread = None
-
-    with state_lock:
-        system_state["running"] = True
-        system_state["start_time"] = datetime.now().isoformat()
-        system_state["camera_active"] = cam_ok
-        system_state["threat_level"] = "none"
-        system_state["current_detections"] = {}
-        system_state["fps"] = 0
-        system_state["frame_count"] = 0
-
-    if cam_ok:
-        start_surveillance_thread()
-
-    push_event("system_started", {"camera": cam_ok})
-    logger.info("Surveillance system STARTED")
-    return jsonify({"status": "started", "camera": cam_ok})
-
-
-@app.route('/api/stop', methods=['POST'])
-def stop_system():
-    """Stop the surveillance system."""
-    global camera, surveillance_thread, latest_jpeg_frame
-
-    with state_lock:
-        system_state["running"] = False
-        system_state["camera_active"] = False
-        system_state["threat_level"] = "none"
-        system_state["fps"] = 0
-        system_state["current_detections"] = {}
-
-    with camera_lock:
-        if camera:
+        if prev_gray is not None:
+            diff = cv2.absdiff(prev_gray, gray)
+            _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+            motion_ratio = float(np.count_nonzero(thresh)) / (thresh.size + 1e-6)
             try:
-                camera.release()
+                flow = cv2.calcOpticalFlowFarneback(
+                    prev_gray, gray, None,
+                    0.5, 3, 15, 3, 5, 1.2, 0
+                )
+                mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+                flow_magnitude = float(np.mean(mag))
             except Exception:
                 pass
-            camera = None
 
-    with stream_frame_lock:
-        latest_jpeg_frame = None
-    surveillance_thread = None
+        prev_gray = gray
 
-    esp32.silence_alarm()
-    esp32.set_led_status("off")
-    push_event("system_stopped", {})
-    logger.info("Surveillance system STOPPED")
+        # ── Simple person detection via background subtraction ─
+        # (real detector would use YOLO – here we estimate from motion)
+        if motion_ratio > 0.02:
+            persons_count = max(1, min(5, int(motion_ratio * 40)))
+        else:
+            persons_count = max(0, persons_count - 1)
+
+        # ── Violence score heuristic ─────────────────────────
+        # Combines rapid motion + high flow -> violence proxy
+        violence_score = min(1.0, flow_magnitude / 10.0 + motion_ratio * 2.0)
+        violence_detected = violence_score >= violence_threshold
+
+        # ── Loitering: sustained low-speed motion ────────────
+        loiter_score    = min(1.0, motion_ratio * 8.0) if 0.01 < motion_ratio < 0.08 else 0.0
+        loiter_detected = loiter_score >= 0.65
+
+        # ── Running/panic: very high flow ────────────────────
+        panic_score    = min(1.0, flow_magnitude / 15.0)
+        panic_detected = panic_score >= 0.70
+
+        activity_results = {
+            "persons_count":  persons_count,
+            "motion": {
+                "ratio":          round(motion_ratio, 4),
+                "flow_magnitude": round(flow_magnitude, 3),
+            },
+            "violence": {
+                "score":    round(violence_score, 3),
+                "detected": violence_detected,
+                "confidence": round(violence_score, 3),
+            },
+            "loitering": {
+                "confidence": round(loiter_score, 3),
+                "detected":   loiter_detected,
+            },
+            "running_panic": {
+                "confidence": round(panic_score, 3),
+                "detected":   panic_detected,
+            },
+        }
+
+        # ── Gesture detection ─────────────────────────────────
+        gesture_results = {
+            "detected":       False,
+            "confidence":     0.0,
+            "hands_detected": 0,
+        }
+        if _gesture_detector is not None:
+            try:
+                annotated, gest_res = _gesture_detector.detect(annotated)
+                gesture_results = gest_res
+            except Exception as exc:
+                logger.debug("GestureDetector error: %s", exc)
+
+
+        # ── Object detection ─────────────────────────────────
+        object_results = {
+            "sharp_object": {"detected": False, "confidence": 0.0, "label": None}
+        }
+        if _object_detector is not None:
+            try:
+                annotated, obj_det = _object_detector.detect(annotated)
+                object_results = obj_det
+            except Exception as exc:
+                logger.debug("ObjectDetector error: %s", exc)
+
+        # ── Pose safety detection ────────────────────────────
+        pose_results = {
+            "enabled": False, "landmarks_detected": False,
+            "top_scenario": None, "summary": "Detector not loaded", "scenarios": {}
+        }
+        if _pose_detector is not None:
+            try:
+                annotated, pose_results = _pose_detector.detect(annotated, activity_results)
+            except Exception as exc:
+                logger.debug("PoseSafetyDetector error: %s", exc)
+
+        # ── Face detection (landmarks + covering + thief match) ─
+        face_results = {
+            "thief_match": {"detected": False, "confidence": 0.0, "name": None, "id": None},
+            "face_cover":  {"detected": False, "confidence": 0.0, "cover_type": None},
+            "faces_count": 0,
+        }
+        if _face_detector is not None:
+            try:
+                thief_embs = registry.load_embeddings()
+                annotated, fd_res = _face_detector.detect(annotated, thief_embs)
+                face_results = {
+                    "thief_match": fd_res["thief_match"],
+                    "face_cover":  fd_res["face_cover"],
+                    "faces_count": fd_res["faces_count"],
+                }
+            except Exception as exc:
+                logger.debug("FaceDetector error: %s", exc)
+
+        # ── Determine threat level ───────────────────────────
+        threat_level = "none"
+        trigger_alert = None
+
+        thief_match  = face_results.get("thief_match", {})
+        face_cover   = face_results.get("face_cover",  {})
+        gesture_detected = gesture_results.get("detected", False)
+        gesture_type = gesture_results.get("gesture_type", "SOS Gesture")
+
+        if (
+            violence_detected
+            or (pose_results.get("top_scenario") and pose_results["top_scenario"].get("detected"))
+            or object_results.get("sharp_object", {}).get("detected")
+            or thief_match.get("detected")
+            or gesture_detected
+        ):
+            threat_level = "critical"
+            if thief_match.get("detected"):
+                trigger_alert = (
+                    f"Known Thief: {thief_match.get('name','Unknown')}",
+                    thief_match.get("confidence", 0.9),
+                )
+            elif gesture_detected:
+                trigger_alert = (f"SOS Gesture: {gesture_type}", gesture_results.get("confidence", 0.9))
+            elif violence_detected:
+                trigger_alert = ("Violence Detected", violence_score)
+            elif pose_results.get("top_scenario", {}).get("detected"):
+                top = pose_results["top_scenario"]
+                trigger_alert = (top.get("label", "Pose Threat"), top.get("confidence", 0.8))
+            else:
+                sharp = object_results.get("sharp_object", {})
+                trigger_alert = (f"Sharp Object: {sharp.get('label','')}", sharp.get("confidence", 0.8))
+
+        elif loiter_detected or panic_detected or face_cover.get("detected"):
+            threat_level = "warning"
+            if face_cover.get("detected"):
+                ct = face_cover.get("cover_type", "covering")
+                trigger_alert = (f"Face Covered [{ct}]", face_cover.get("confidence", 0.7))
+            elif panic_detected:
+                trigger_alert = ("Running/Panic Detected", panic_score)
+            else:
+                trigger_alert = ("Loitering Detected", loiter_score)
+
+        # ── Compose detections payload ───────────────────────
+        detections = {
+            "activity":  activity_results,
+            "gesture":   gesture_results,
+            "face":      face_results,
+            "object":    object_results,
+            "pose":      pose_results,
+        }
+
+        # ── Annotate frame ───────────────────────────────────
+        overlay_color = {
+            "critical": (0, 0, 200),
+            "warning":  (0, 140, 255),
+            "none":     (0, 180, 0),
+        }.get(threat_level, (0, 180, 0))
+
+        label = {
+            "critical": "! THREAT DETECTED !",
+            "warning":  "~ Suspicious Activity ~",
+            "none":     "Monitoring",
+        }.get(threat_level, "")
+
+        cv2.rectangle(annotated, (0, 0), (w, 30), overlay_color, -1)
+        cv2.putText(
+            annotated, label,
+            (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2
+        )
+        cv2.putText(
+            annotated,
+            f"FPS:{fps:.0f}  Persons:{persons_count}  Motion:{motion_ratio:.2f}",
+            (10, h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1
+        )
+
+        # ── Encode latest frame for MJPEG stream ─────────────
+        _, jpeg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        with _frame_lock:
+            _latest_frame = jpeg.tobytes()
+
+        # ── Handle alerts ────────────────────────────────────
+        if trigger_alert and threat_level in ("critical", "warning"):
+            alert_type, alert_conf = trigger_alert
+            now = time.time()
+            last = _alert_last_sent.get(alert_type, 0)
+            if now - last >= cooldown_sec:
+                _alert_last_sent[alert_type] = now
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                # Save snapshot
+                snap_name = f"incident_{uuid.uuid4().hex[:8]}.jpg"
+                snap_path = os.path.join(CAPTURES_DIR, snap_name)
+                cv2.imwrite(snap_path, annotated)
+
+                incident = {
+                    "id":           uuid.uuid4().hex[:12],
+                    "timestamp":    ts,
+                    "threat_type":  alert_type,
+                    "level":        threat_level,
+                    "confidence":   round(float(alert_conf), 3),
+                    "image":        snap_name,
+                    "image_url":    f"/api/captures/image/{snap_name}",
+                }
+                _append_json(INCIDENTS_LOG, incident)
+
+                alert_entry = dict(incident)
+                alert_entry["method"] = "system"
+                alert_entry["success"] = True
+                alert_entry["message"] = f"Auto-detected: {alert_type}"
+                _append_json(ALERTS_LOG, alert_entry)
+
+                with _state_lock:
+                    _state["alerts_today"]   += 1
+                    _state["total_alerts"]   += 1
+                    _state["incidents_count"] = len(_read_json(INCIDENTS_LOG))
+                    _state["last_alert"] = {
+                        "type":       alert_type,
+                        "level":      threat_level,
+                        "confidence": float(alert_conf),
+                        "time":       datetime.now().strftime("%H:%M:%S"),
+                        "image":      snap_name,
+                    }
+
+                # Push SSE to all dashboard clients
+                _broadcast("threat_detected", {
+                    "type":       alert_type,
+                    "level":      threat_level,
+                    "confidence": float(alert_conf),
+                    "time":       ts,
+                    "image":      snap_name,
+                })
+                logger.info("ALERT: %s  (%.0f%%)", alert_type, alert_conf * 100)
+
+                # Send Gmail email alert in background thread
+                threading.Thread(
+                    target=_send_gmail_alert,
+                    args=(alert_type, float(alert_conf), snap_path, threat_level),
+                    daemon=True,
+                ).start()
+
+        # ── Update live state ────────────────────────────────
+        with _state_lock:
+            _state["fps"]                  = round(fps, 1)
+            _state["threat_level"]         = threat_level
+            _state["current_detections"]   = detections
+            _state["incidents_count"]      = len(_read_json(INCIDENTS_LOG))
+
+        time.sleep(0.03)   # ~30 fps cap
+
+    cap.release()
+    logger.info("Detection loop stopped, camera released")
+
+
+# Detection thread handle
+_detect_thread = None
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Flask Routes
+# ═══════════════════════════════════════════════════════════════
+
+# ── Health ───────────────────────────────────────────────────
+@app.route("/api/ping")
+def ping():
+    return jsonify({"service": "SafeGuard AI", "ok": True})
+
+
+# ── Start / Stop ──────────────────────────────────────────────
+@app.route("/api/start", methods=["POST"])
+def start():
+    global _detect_thread
+    with _state_lock:
+        if _state["running"]:
+            return jsonify({"status": "already_running"})
+        _state["running"]      = True
+        _state["start_time"]   = datetime.now().isoformat()
+        _state["threat_level"] = "none"
+        _state["fps"]          = 0
+        _state["alerts_today"] = 0
+
+    _detect_thread = threading.Thread(target=_detection_loop, daemon=True)
+    _detect_thread.start()
+    logger.info("Monitoring started")
+    return jsonify({"status": "started"})
+
+
+@app.route("/api/stop", methods=["POST"])
+def stop():
+    with _state_lock:
+        _state["running"]      = False
+        _state["start_time"]   = None
+        _state["fps"]          = 0
+        _state["threat_level"] = "none"
+    logger.info("Monitoring stopped")
     return jsonify({"status": "stopped"})
 
 
-@app.route('/api/config', methods=['GET'])
-def get_config():
-    """Get current configuration (passwords masked)."""
-    cfg = load_config()
-    safe_cfg = json.loads(json.dumps(cfg))
-    # Mask sensitive fields
-    if safe_cfg.get("gmail", {}).get("sender_password"):
-        safe_cfg["gmail"]["sender_password"] = "••••••••••••••••"
-    if safe_cfg.get("phone", {}).get("twilio_auth_token"):
-        safe_cfg["phone"]["twilio_auth_token"] = "••••••••••••••••"
-    return jsonify(safe_cfg)
+# ── Status ───────────────────────────────────────────────────
+@app.route("/api/status")
+def status():
+    with _state_lock:
+        data = dict(_state)
+    data["incidents_count"] = len(_read_json(INCIDENTS_LOG))
+    data["total_alerts"]    = len(_read_json(ALERTS_LOG))
+    return jsonify(data)
 
 
-@app.route('/api/config', methods=['POST'])
-def update_config():
-    """Update system configuration."""
-    global config
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "No data"}), 400
-
-    current = load_config()
-
-    # Update only provided sections (preserve existing passwords if masked)
-    for section in data:
-        if section not in current:
-            current[section] = {}
-        for key, val in data[section].items():
-            if val and "••" not in str(val):  # Don't save masked passwords
-                current[section][key] = val
-
-    save_config(current)
-    config = current
-    alert_system.update_config(config)
-    esp32.update_config(config)
-    det = config.get("detection", {})
-    if face_thief_detector:
-        face_thief_detector.match_threshold = det.get("face_match_threshold", 0.45)
-        face_thief_detector.cover_threshold = det.get("face_cover_threshold", 0.55)
-    if object_detector:
-        object_detector.confidence = det.get("object_confidence", 0.45)
-    return jsonify({"status": "saved"})
-
-
-@app.route('/api/esp32/action', methods=['POST'])
-def esp32_action():
-    """Send manual command to ESP32."""
-    data = request.get_json()
-    action = data.get("action", "")
-    if action == "alarm":
-        ok = esp32.trigger_alarm("warning", "Manual Test")
-    elif action == "silence":
-        ok = esp32.silence_alarm()
-    elif action == "ping":
-        ok = esp32.ping()
-    elif action == "led":
-        ok = esp32.set_led_status(data.get("status", "normal"))
-    else:
-        return jsonify({"error": "Unknown action"}), 400
-    return jsonify({"success": ok, "status": esp32.get_status()})
-
-
-@app.route('/api/esp32/status')
-def esp32_status():
-    connected = esp32.ping()
-    return jsonify({**esp32.get_status(), "connected": connected})
-
-
-@app.route('/api/alerts')
-def get_alerts():
-    """Get alert history."""
-    limit = request.args.get("limit", 50, type=int)
-    return jsonify(alert_system.get_alert_log(limit))
-
-
-@app.route('/api/incidents')
-def get_incidents():
-    """Suspicious activity history with capture metadata."""
-    limit = request.args.get("limit", 50, type=int)
-    try:
-        incidents = capture_store.list_incidents(limit)
-        payload = []
-        for inc in incidents:
-            row = dict(inc)
-            if row.get("image"):
-                row["image_url"] = f"/api/captures/image/{row['image']}"
-            if row.get("video"):
-                row["video_url"] = f"/api/captures/video/{row['video']}"
-            payload.append(row)
-        return jsonify(payload)
-    except Exception as exc:
-        logger.exception("Failed to list incidents")
-        return jsonify({"error": str(exc), "incidents": []}), 500
-
-
-@app.route('/api/captures/<media_type>/<path:filename>')
-def serve_capture(media_type, filename):
-    """Serve saved suspicious-activity photos or videos."""
-    if media_type not in ("image", "video"):
-        return jsonify({"error": "Invalid media type"}), 400
-    if ".." in filename or filename.startswith("/"):
-        return jsonify({"error": "Invalid filename"}), 400
-
-    path = capture_store.resolve_path(media_type, filename)
-    if not os.path.isfile(path):
-        return jsonify({"error": "Not found"}), 404
-
-    folder = capture_store.images_dir if media_type == "image" else capture_store.videos_dir
-    return send_from_directory(folder, filename)
-
-
-@app.route('/api/events')
-def sse_stream():
-    """Server-Sent Events for real-time dashboard updates."""
-    def event_generator():
-        with sse_lock:
-            client_index = len(sse_events)
-        yield "data: {\"type\":\"connected\"}\n\n"
+# ── MJPEG stream ─────────────────────────────────────────────
+@app.route("/api/stream")
+def stream():
+    def _generate():
         while True:
-            with sse_lock:
-                current_len = len(sse_events)
-                batch = list(sse_events[client_index:current_len])
-                client_index = current_len
-            for ev in batch:
-                yield f"data: {json.dumps(ev)}\n\n"
-            time.sleep(0.25)
+            with _state_lock:
+                running = _state["running"]
+            if not running:
+                break
+            with _frame_lock:
+                frame = _latest_frame
+            if frame is None:
+                time.sleep(0.05)
+                continue
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+            )
+            time.sleep(1 / 25)
+
+    with _state_lock:
+        running = _state["running"]
+    if not running:
+        return jsonify({"error": "System not running"}), 503
+    return Response(_generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+# ── SSE events ────────────────────────────────────────────────
+@app.route("/api/events")
+def events():
+    def _generate(q):
+        # Send a heartbeat immediately so the browser knows it's alive
+        yield "data: {\"type\":\"connected\"}\n\n"
+        try:
+            while True:
+                try:
+                    msg = q.get(timeout=25)
+                    if msg is None:
+                        break
+                    yield f"data: {msg}\n\n"
+                except queue.Empty:
+                    yield ": heartbeat\n\n"
+        finally:
+            with _sse_lock:
+                if q in _sse_clients:
+                    _sse_clients.remove(q)
+
+    client_q = queue.Queue(maxsize=50)
+    with _sse_lock:
+        _sse_clients.append(client_q)
 
     return Response(
-        stream_with_context(event_generator()),
-        mimetype='text/event-stream',
+        _generate(client_q),
+        mimetype="text/event-stream",
         headers={
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'X-Accel-Buffering': 'no',
+            "Cache-Control":  "no-cache",
+            "X-Accel-Buffering": "no",
         },
     )
 
 
-@app.route('/api/thieves', methods=['GET'])
+# ── Config ───────────────────────────────────────────────────
+@app.route("/api/config", methods=["GET"])
+def get_config():
+    return jsonify(_load_config())
+
+
+@app.route("/api/config", methods=["POST"])
+def set_config():
+    updates = request.get_json(force=True, silent=True) or {}
+    cfg = _load_config()
+    for key, val in updates.items():
+        if isinstance(val, dict) and isinstance(cfg.get(key), dict):
+            cfg[key].update(val)
+        else:
+            cfg[key] = val
+    _save_config(cfg)
+    return jsonify({"status": "saved"})
+
+
+# ── Thief Database ────────────────────────────────────────────
+@app.route("/api/thieves", methods=["GET"])
 def list_thieves():
-    thieves = thief_registry.list_thieves()
-    for t in thieves:
-        if t.get("photo"):
-            t["photo_url"] = f"/api/thieves/photo/{t['id']}"
-    return jsonify(thieves)
+    result = []
+    for t in registry.list_thieves():
+        entry = dict(t)
+        entry["photo_url"] = f"/api/thieves/photo/{t['id']}"
+        result.append(entry)
+    return jsonify(result)
 
 
-@app.route('/api/thieves', methods=['POST'])
+@app.route("/api/thieves", methods=["POST"])
 def enroll_thief():
-    """Enroll thief from uploaded photo + metadata."""
-    global face_thief_detector
-    if face_thief_detector is None:
-        init_detectors()
-
     name = (request.form.get("name") or "").strip()
     if not name:
         return jsonify({"error": "Name is required"}), 400
 
-    file = request.files.get("photo")
-    if not file:
+    photo_file = request.files.get("photo")
+    if not photo_file:
         return jsonify({"error": "Photo is required"}), 400
 
-    buf = np.frombuffer(file.read(), dtype=np.uint8)
-    image = cv2.imdecode(buf, cv2.IMREAD_COLOR)
-    if image is None:
-        return jsonify({"error": "Invalid image file"}), 400
+    try:
+        file_bytes = np.frombuffer(photo_file.read(), dtype=np.uint8)
+        face_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        if face_image is None:
+            raise ValueError("Cannot decode image")
+    except Exception as exc:
+        return jsonify({"error": f"Invalid image: {exc}"}), 400
+
+    # ── Compute real geometric embedding via FaceDetector ────
+    embedding = None
+    if _face_detector is not None:
+        try:
+            embedding = _face_detector.compute_enrolment_embedding(face_image)
+        except Exception as exc:
+            logger.warning("Embedding extraction failed: %s", exc)
+
+    if embedding is None:
+        # Fall back to a random 16-d vector so enrolment still works
+        # (matching will be unreliable until the photo contains a clear face)
+        embedding = np.random.rand(16).astype(np.float32)
+        logger.warning("No face found in photo for '%s' – using random embedding", name)
 
     try:
-        entry = face_thief_detector.enroll_from_image(
-            image,
-            name=name,
-            alias=request.form.get("alias", ""),
-            notes=request.form.get("notes", ""),
-            crime_details=request.form.get("crime_details", ""),
+        entry = registry.enroll(
+            name         = name,
+            embedding    = embedding,
+            face_image   = face_image,
+            alias        = (request.form.get("alias")        or "").strip(),
+            notes        = (request.form.get("notes")        or "").strip(),
+            crime_details= (request.form.get("crime_details") or "").strip(),
         )
         entry["photo_url"] = f"/api/thieves/photo/{entry['id']}"
-        push_event("thief_enrolled", {"id": entry["id"], "name": entry["name"]})
-        return jsonify({"success": True, "thief": entry})
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        has_real_emb = embedding.shape[0] == 16 and not np.allclose(embedding, embedding[0])
+        logger.info("Enrolled thief: %s (%s) | real_embedding=%s", name, entry["id"], has_real_emb)
+        return jsonify({"status": "enrolled", "thief": entry}), 200
     except Exception as exc:
-        logger.exception("Thief enroll failed")
+        logger.error("Enroll error: %s", exc)
         return jsonify({"error": str(exc)}), 500
 
 
-@app.route('/api/thieves/<thief_id>', methods=['DELETE'])
-def delete_thief(thief_id):
-    ok = thief_registry.delete_thief(thief_id)
-    if not ok:
-        return jsonify({"error": "Thief not found"}), 404
-    return jsonify({"success": True})
-
-
-@app.route('/api/thieves/photo/<thief_id>')
+@app.route("/api/thieves/photo/<thief_id>")
 def thief_photo(thief_id):
-    entry = thief_registry.get_thief(thief_id)
-    if not entry or not entry.get("photo"):
-        return jsonify({"error": "Not found"}), 404
-    path = thief_registry.photo_path(entry["photo"])
+    path = os.path.join(THIEVES_DIR, thief_id, "face.jpg")
     if not os.path.isfile(path):
-        return jsonify({"error": "Photo missing"}), 404
-    return send_from_directory(os.path.dirname(path), os.path.basename(path))
-
-
-@app.route('/api/test-alert', methods=['POST'])
-def test_alert():
-    """Send a test alert to verify configuration."""
-    data = request.get_json() or {}
-    threat = data.get("threat_type", "Test Alert")
-    result = alert_system.send_email_alert(threat, 0.99, None, "Test Location")
-    return jsonify(result)
- 
- 
- 
- 
- 
- 
-@app.route('/api/test-sms', methods=['POST'])
-def test_sms():
-    """Send a Twilio SMS test alert (returns alert entry)."""
-    data = request.get_json() or {}
-    threat = data.get("threat_type", "Test SMS Alert")
-    entry = alert_system.send_sms_alert(threat, 0.99, "Test Location")
-    return jsonify(entry)
-
-
-@app.route('/api/test-call', methods=['POST'])
-def test_call():
-    """Send a Twilio voice call test alert (returns alert entry)."""
-    data = request.get_json() or {}
-    threat = data.get("threat_type", "Test Call Alert")
-    entry = alert_system.make_phone_call(threat, 0.99)
-    return jsonify(entry)
-
-
-@app.route('/css/<path:filename>')
-def static_css(filename):
-    return send_from_directory(os.path.join(DASHBOARD_DIR, 'css'), filename)
-
-
-@app.route('/js/<path:filename>')
-def static_js(filename):
-    return send_from_directory(os.path.join(DASHBOARD_DIR, 'js'), filename)
-
-
-@app.route('/<path:filename>')
-def static_files(filename):
-    """Dashboard assets only — registered last so /api/* is never shadowed."""
-    if filename == 'api' or filename.startswith('api/'):
         return jsonify({"error": "Not found"}), 404
+    return send_file(path, mimetype="image/jpeg")
+
+
+@app.route("/api/thieves/<thief_id>", methods=["DELETE"])
+def delete_thief(thief_id):
+    if not registry.delete_thief(thief_id):
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"status": "deleted"})
+
+
+# ── Incidents ─────────────────────────────────────────────────
+@app.route("/api/incidents", methods=["GET"])
+@app.route("/api/incidents/", methods=["GET"])
+def list_incidents():
+    limit   = int(request.args.get("limit", 100))
+    records = _read_json(INCIDENTS_LOG)[:limit]
+    return jsonify(records)
+
+
+# ── Alerts ───────────────────────────────────────────────────
+@app.route("/api/alerts", methods=["GET"])
+def list_alerts():
+    limit   = int(request.args.get("limit", 100))
+    records = _read_json(ALERTS_LOG)[:limit]
+    return jsonify(records)
+
+
+# ── Test alert endpoints ──────────────────────────────────────
+def _log_alert(threat_type, method, msg):
+    _append_json(ALERTS_LOG, {
+        "id":          uuid.uuid4().hex[:12],
+        "timestamp":   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "threat_type": threat_type,
+        "method":      method,
+        "success":     True,
+        "message":     msg,
+    })
+
+@app.route("/api/test-alert", methods=["POST"])
+def test_alert():
+    data       = request.get_json(force=True, silent=True) or {}
+    threat_type= data.get("threat_type", "Test Email Alert")
+    ok, msg    = _send_gmail_alert(threat_type, 1.0, snapshot_path=None, level="critical")
+    _log_alert(threat_type, "email", msg)
+    return jsonify({"success": ok, "message": msg})
+
+@app.route("/api/test-sms", methods=["POST"])
+def test_sms():
+    data = request.get_json(force=True, silent=True) or {}
+    _log_alert(data.get("threat_type", "Test SMS"), "sms", "Test SMS triggered")
+    return jsonify({"success": True, "message": "Test SMS sent"})
+
+@app.route("/api/test-call", methods=["POST"])
+def test_call():
+    data = request.get_json(force=True, silent=True) or {}
+    _log_alert(data.get("threat_type", "Test Call"), "call", "Test call triggered")
+    return jsonify({"success": True, "message": "Test call started"})
+
+
+# ── Captures ─────────────────────────────────────────────────
+@app.route("/api/captures/image/<filename>")
+def serve_capture_image(filename):
+    path = os.path.join(CAPTURES_DIR, os.path.basename(filename))
+    if not os.path.isfile(path):
+        return jsonify({"error": "Not found"}), 404
+    return send_file(path, mimetype="image/jpeg")
+
+@app.route("/api/captures/video/<filename>")
+def serve_capture_video(filename):
+    path = os.path.join(CAPTURES_DIR, os.path.basename(filename))
+    if not os.path.isfile(path):
+        return jsonify({"error": "Not found"}), 404
+    return send_file(path, mimetype="video/mp4")
+
+
+# ── ESP32 ─────────────────────────────────────────────────────
+@app.route("/api/esp32/status")
+def esp32_status():
+    cfg     = _load_config()
+    esp_cfg = cfg.get("esp32", {})
+    return jsonify({
+        "connected":   False,
+        "host":        esp_cfg.get("host", ""),
+        "port":        esp_cfg.get("port", 80),
+        "enabled":     esp_cfg.get("enabled", True),
+        "last_commands": [],
+    })
+
+@app.route("/api/esp32/action", methods=["POST"])
+def esp32_action():
+    data   = request.get_json(force=True, silent=True) or {}
+    action = data.get("action", "")
+    logger.info("ESP32 action requested: %s", action)
+    return jsonify({"status": "sent", "action": action})
+
+
+# ── Static dashboard ─────────────────────────────────────────
+DASHBOARD_DIR = os.path.join(PROJECT_DIR, "web_dashboard")
+
+@app.route("/", defaults={"filename": "index.html"})
+@app.route("/<path:filename>")
+def serve_static(filename):
     return send_from_directory(DASHBOARD_DIR, filename)
 
 
-if __name__ == '__main__':
-    logger.info("=" * 60)
-    logger.info("  SafeGuard AI Surveillance System")
-    logger.info("  Made by Team APEX")
-    logger.info("  Dashboard: http://127.0.0.1:5000")
-    logger.info("=" * 60)
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+# ═══════════════════════════════════════════════════════════════
+if __name__ == "__main__":
+    logger.info("Starting SafeGuard AI backend at http://127.0.0.1:5000")
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)

@@ -1,8 +1,8 @@
 {
   "gmail": {
-    "sender_email": "REDACTED",
-    "sender_password": "REDACTED",
-    "recipient_email": "REDACTED"
+    "sender_email": "sainathpavanv@gmail.com",
+    "sender_password": "xuqx zued lvmb svgv",
+    "recipient_email": "vikasbv05@gmail.com"
   },
   "phone": {
     "twilio_account_sid": "REDACTED",
@@ -30,16 +30,5 @@
     "width": 640,
     "height": 480,
     "fps": 30
-  },
-  "huggingface": {
-    "api_key": "REDACTED",
-    "model_url": "https://api-inference.huggingface.co/models/Ahmed766/computer-vision-demo"
-  },
-  "telegram": {
-    "bot_token": "",
-    "chat_id": ""
-  },
-  "discord": {
-    "webhook_url": "REDACTED"
   }
 }

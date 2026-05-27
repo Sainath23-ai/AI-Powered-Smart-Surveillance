@@ -367,6 +367,16 @@ html, body {
 .form-group.full-span { grid-column: 1/-1; }
 .form-group label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
 .help-link { color: var(--accent); text-decoration: none; font-size: 11px; margin-left: 8px; font-weight: 500; }
+.form-help-text {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.form-help-text strong {
+  color: var(--text-secondary);
+}
+
 .form-input {
   background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 10px 14px; color: var(--text-primary); font-size: 14px; font-family: 'Inter', sans-serif;

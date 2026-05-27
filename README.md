@@ -31,18 +31,16 @@
 ```
 AI-Powered Smart Surveillance/
 ├── backend/
-│   ├── app.py               ← Flask server (main entry point)
-│   ├── config.py            ← Configuration loader/saver
-│   ├── detector.py          ← Violence & activity AI detector
-│   ├── gesture_detector.py  ← Hand gesture (SOS) detector
-│   ├── alert_system.py      ← Gmail + Twilio alerts
-│   ├── esp32_comm.py        ← ESP32 HTTP controller
-│   ├── face_thief_detector.py ← Face + thief match + face-cover ML
-│   ├── object_detector.py   ← YOLOv8 sharp object detection
-│   ├── thief_registry.py    ← Thief profile storage
-│   └── requirements.txt     ← Python dependencies
+│   ├── app.py                 ← Flask server & real-time AI detection loop
+│   ├── face_detector.py       ← Face detection, covering analysis & matching (MediaPipe Tasks)
+│   ├── thief_registry.py      ← Thief profile and face embedding storage
+│   ├── pose_safety_detector.py← Pose-based safety scenario estimation (MediaPipe)
+│   ├── object_detector.py     ← YOLOv8 sharp object detector
+│   ├── hf_detector.py         ← Hugging Face API detector helper
+│   ├── requirements.txt       ← Python dependencies
+│   └── *.task                 ← MediaPipe offline task model files
 ├── config/
-│   └── settings.json        ← Persistent settings file
+│   └── settings.json          ← Persistent configuration settings
 ├── esp32/
 │   └── surveillance_esp32/
 │       └── surveillance_esp32.ino  ← Arduino firmware
@@ -84,7 +82,7 @@ Click **▶ Start System** in the dashboard
 
 ## 🔧 Gmail Setup (App Password)
 
-1. Enable **2-Step Verification** on your Google account
+1. **Critical:** Enable **2-Step Verification** on your Google account (if not enabled, the App Passwords link below will redirect or fail).
 2. Go to: https://myaccount.google.com/apppasswords
 3. Create an App Password for "Mail" on "Windows Computer"
 4. Use the 16-character password in the Settings page

@@ -2,38 +2,56 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 .Python
-env/
-venv/
-.venv/
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
-pip-wheel-metadata/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Virtualenv
-.env
+# Virtual environments
+.venv
+venv/
+env/
 ENV/
-env.bak/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# OS files
-Thumbs.db
-.DS_Store
+# Environment variables
+.env
+.env.local
 
-# Data and uploads
-data/
+# Large files and uploads
 uploads/
+*.mp4
+*.avi
+*.mov
 
-# OneDrive and system paths
-OneDrive/
-AppData/
+# Logs
+*.log
+*.err
+backend_server.err
+backend_server.log
 
-# caches
-.cache/
-
-# Node
-node_modules/
+# OS
+.DS_Store
+Thumbs.db
