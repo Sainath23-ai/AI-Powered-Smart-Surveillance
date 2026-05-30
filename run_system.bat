@@ -1,5 +1,9 @@
 @echo off
 title SafeGuard AI - Surveillance System Launcher
+
+:: Force working directory to be the batch file's folder
+cd /d "%~dp0"
+
 echo ──────────────────────────────────────────────────────────
 echo 🛡️  Starting SafeGuard AI Backend Server...
 echo ──────────────────────────────────────────────────────────
@@ -7,7 +11,7 @@ echo.
 
 :: Check if virtual environment exists
 if not exist ".venv\Scripts\python.exe" (
-    echo [ERROR] Virtual environment (.venv) not found.
+    echo [ERROR] Virtual environment (.venv) not found in: %CD%
     echo Please make sure you are in the project root and run setup.
     pause
     exit /b 1

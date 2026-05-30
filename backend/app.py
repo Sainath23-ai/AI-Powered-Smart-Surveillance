@@ -22,6 +22,7 @@ import numpy as np
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 
+
 # ── Paths ────────────────────────────────────────────────────
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR  = os.path.join(BASE_DIR, "..")
@@ -45,6 +46,7 @@ logger = logging.getLogger("SafeGuardAI")
 # ── Flask App ─────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app, origins="*")
+
 
 # ── Shared State ──────────────────────────────────────────────
 _state_lock = threading.Lock()
@@ -72,18 +74,32 @@ _sse_clients = []
 # Alert cooldown tracking
 _alert_last_sent = {}         # threat_type -> timestamp
 
-# ── JSON helpers ──────────────────────────────────────────────
+# ── JSON helpers with in-memory cache ──────────────────────────
+_json_cache = {}
+_json_cache_lock = threading.Lock()
+
 def _read_json(path):
+    with _json_cache_lock:
+        if path in _json_cache:
+            return _json_cache[path]
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, list) else []
+        data = data if isinstance(data, list) else []
+        with _json_cache_lock:
+            _json_cache[path] = data
+        return data
     except Exception:
         return []
 
 def _write_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    with _json_cache_lock:
+        _json_cache[path] = data
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as exc:
+        logger.error("Failed to write JSON log to %s: %s", path, exc)
 
 def _append_json(path, entry, maxlen=500):
     records = _read_json(path)
@@ -244,6 +260,55 @@ def _init_detectors(cfg):
 
 
 
+# ── Cache Drawing Helpers for Frame Skipping ──────────────────
+def _draw_cached_faces(frame, faces, cover_threshold=0.55):
+    for f in faces:
+        box = f.get("box")
+        if not box:
+            continue
+        x1, y1, x2, y2 = box
+        match_name = f.get("match_name")
+        match_conf = f.get("match_conf", 0.0)
+        cover_score = f.get("cover_score", 0.0)
+        cover_type = f.get("cover_type", "covering")
+        
+        if match_name:
+            colour = (0, 0, 210)
+            label = f"THIEF: {match_name} ({match_conf:.0%})"
+        elif cover_score >= cover_threshold:
+            colour = (0, 110, 255)
+            label = f"COVERED [{cover_type}] {cover_score:.0%}"
+        else:
+            colour = (60, 210, 80)
+            label = f"Face {cover_score:.0%}"
+            
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 2)
+        text_y = max(y1 - 4, 18)
+        cv2.rectangle(frame, (x1, text_y - 18), (x2, text_y + 2), colour, -1)
+        cv2.putText(frame, label, (x1 + 3, text_y - 3),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1)
+
+def _draw_cached_objects(frame, detections):
+    for d in detections:
+        box = d.get("box")
+        if not box:
+            continue
+        x1, y1, x2, y2 = box
+        label = d.get("label", "object")
+        conf = d.get("confidence", 0.0)
+        is_sharp = d.get("is_sharp", False)
+        colour = (0, 0, 255) if is_sharp else (180, 180, 180)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 2)
+        cv2.putText(
+            frame,
+            f"{label} {conf:.0%}",
+            (x1, max(18, y1 - 6)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            colour,
+            2,
+        )
+
 # ╔══════════════════════════════════════════════════════════════╗
 # ║               AI Detection Loop Thread                      ║
 # ╚══════════════════════════════════════════════════════════════╝
@@ -284,6 +349,33 @@ def _detection_loop():
     violence_threshold = float(det_cfg.get("violence_threshold",  0.75))
     cooldown_sec       = int(det_cfg.get("alert_cooldown_seconds", 30))
 
+    frame_count = 0
+    prev_annotated = None
+    prev_detections = {
+        "activity": {
+            "persons_count": 0,
+            "motion": {"ratio": 0.0, "flow_magnitude": 0.0},
+            "violence": {"score": 0.0, "detected": False, "confidence": 0.0},
+            "loitering": {"confidence": 0.0, "detected": False},
+            "running_panic": {"confidence": 0.0, "detected": False},
+        },
+        "gesture": {"detected": False, "confidence": 0.0, "hands_detected": 0},
+        "face": {
+            "thief_match": {"detected": False, "confidence": 0.0, "name": None, "id": None},
+            "face_cover": {"detected": False, "confidence": 0.0, "cover_type": None},
+            "faces_count": 0,
+            "faces": [],
+        },
+        "object": {
+            "sharp_object": {"detected": False, "confidence": 0.0, "label": None},
+            "detections": [],
+        },
+        "pose": {
+            "enabled": False, "landmarks_detected": False,
+            "top_scenario": None, "summary": "Detector not loaded", "scenarios": {}
+        }
+    }
+
     while True:
         with _state_lock:
             if not _state["running"]:
@@ -294,6 +386,7 @@ def _detection_loop():
             time.sleep(0.05)
             continue
 
+        frame_count += 1
         frame_times.append(time.time())
         fps = len(frame_times) / max(
             frame_times[-1] - frame_times[0], 0.001
@@ -324,100 +417,118 @@ def _detection_loop():
 
         prev_gray = gray
 
-        # ── Simple person detection via background subtraction ─
-        # (real detector would use YOLO – here we estimate from motion)
-        if motion_ratio > 0.02:
-            persons_count = max(1, min(5, int(motion_ratio * 40)))
+        # -- Motion-Gated Inference Bypass --
+        if motion_ratio < 0.005 and prev_annotated is not None:
+            annotated = prev_annotated.copy()
+            # Reuse previous detections, updating only the current motion values
+            activity_results = prev_detections["activity"]
+            activity_results["motion"]["ratio"] = round(motion_ratio, 4)
+            activity_results["motion"]["flow_magnitude"] = round(flow_magnitude, 3)
+            
+            gesture_results = prev_detections["gesture"]
+            object_results  = prev_detections["object"]
+            pose_results    = prev_detections["pose"]
+            face_results    = prev_detections["face"]
         else:
-            persons_count = max(0, persons_count - 1)
+            # ── Simple person detection via background subtraction ─
+            # (real detector would use YOLO – here we estimate from motion)
+            if motion_ratio > 0.02:
+                persons_count = max(1, min(5, int(motion_ratio * 40)))
+            else:
+                persons_count = max(0, persons_count - 1)
 
-        # ── Violence score heuristic ─────────────────────────
-        # Combines rapid motion + high flow -> violence proxy
-        violence_score = min(1.0, flow_magnitude / 10.0 + motion_ratio * 2.0)
-        violence_detected = violence_score >= violence_threshold
+            # ── Violence score heuristic ─────────────────────────
+            # Combines rapid motion + high flow -> violence proxy
+            violence_score = min(1.0, flow_magnitude / 10.0 + motion_ratio * 2.0)
+            violence_detected = violence_score >= violence_threshold
 
-        # ── Loitering: sustained low-speed motion ────────────
-        loiter_score    = min(1.0, motion_ratio * 8.0) if 0.01 < motion_ratio < 0.08 else 0.0
-        loiter_detected = loiter_score >= 0.65
+            # ── Loitering: sustained low-speed motion ────────────
+            loiter_score    = min(1.0, motion_ratio * 8.0) if 0.01 < motion_ratio < 0.08 else 0.0
+            loiter_detected = loiter_score >= 0.65
 
-        # ── Running/panic: very high flow ────────────────────
-        panic_score    = min(1.0, flow_magnitude / 15.0)
-        panic_detected = panic_score >= 0.70
+            # ── Running/panic: very high flow ────────────────────
+            panic_score    = min(1.0, flow_magnitude / 15.0)
+            panic_detected = panic_score >= 0.70
 
-        activity_results = {
-            "persons_count":  persons_count,
-            "motion": {
-                "ratio":          round(motion_ratio, 4),
-                "flow_magnitude": round(flow_magnitude, 3),
-            },
-            "violence": {
-                "score":    round(violence_score, 3),
-                "detected": violence_detected,
-                "confidence": round(violence_score, 3),
-            },
-            "loitering": {
-                "confidence": round(loiter_score, 3),
-                "detected":   loiter_detected,
-            },
-            "running_panic": {
-                "confidence": round(panic_score, 3),
-                "detected":   panic_detected,
-            },
-        }
+            activity_results = {
+                "persons_count":  persons_count,
+                "motion": {
+                    "ratio":          round(motion_ratio, 4),
+                    "flow_magnitude": round(flow_magnitude, 3),
+                },
+                "violence": {
+                    "score":    round(violence_score, 3),
+                    "detected": violence_detected,
+                    "confidence": round(violence_score, 3),
+                },
+                "loitering": {
+                    "confidence": round(loiter_score, 3),
+                    "detected":   loiter_detected,
+                },
+                "running_panic": {
+                    "confidence": round(panic_score, 3),
+                    "detected":   panic_detected,
+                },
+            }
 
-        # ── Gesture detection ─────────────────────────────────
-        gesture_results = {
-            "detected":       False,
-            "confidence":     0.0,
-            "hands_detected": 0,
-        }
-        if _gesture_detector is not None:
-            try:
-                annotated, gest_res = _gesture_detector.detect(annotated)
-                gesture_results = gest_res
-            except Exception as exc:
-                logger.debug("GestureDetector error: %s", exc)
+            # ── Gesture detection (always runs on active frames) ──
+            gesture_results = prev_detections["gesture"]
+            if _gesture_detector is not None:
+                try:
+                    annotated, gest_res = _gesture_detector.detect(annotated)
+                    gesture_results = gest_res
+                except Exception as exc:
+                    logger.debug("GestureDetector error: %s", exc)
 
+            # ── Object detection (runs every 3 frames) ────────────
+            object_results = prev_detections["object"]
+            if _object_detector is not None:
+                if frame_count % 3 == 0:
+                    try:
+                        annotated, obj_det = _object_detector.detect(annotated)
+                        object_results = obj_det
+                    except Exception as exc:
+                        logger.debug("ObjectDetector error: %s", exc)
+                else:
+                    _draw_cached_objects(annotated, object_results.get("detections", []))
 
-        # ── Object detection ─────────────────────────────────
-        object_results = {
-            "sharp_object": {"detected": False, "confidence": 0.0, "label": None}
-        }
-        if _object_detector is not None:
-            try:
-                annotated, obj_det = _object_detector.detect(annotated)
-                object_results = obj_det
-            except Exception as exc:
-                logger.debug("ObjectDetector error: %s", exc)
+            # ── Pose safety detection (runs every 2 frames) ───────
+            pose_results = prev_detections["pose"]
+            if _pose_detector is not None:
+                if frame_count % 2 == 0:
+                    try:
+                        annotated, pose_res = _pose_detector.detect(annotated, activity_results)
+                        pose_results = pose_res
+                    except Exception as exc:
+                        logger.debug("PoseSafetyDetector error: %s", exc)
 
-        # ── Pose safety detection ────────────────────────────
-        pose_results = {
-            "enabled": False, "landmarks_detected": False,
-            "top_scenario": None, "summary": "Detector not loaded", "scenarios": {}
-        }
-        if _pose_detector is not None:
-            try:
-                annotated, pose_results = _pose_detector.detect(annotated, activity_results)
-            except Exception as exc:
-                logger.debug("PoseSafetyDetector error: %s", exc)
+            # ── Face detection (runs every 2 frames) ──────────────
+            face_results = prev_detections["face"]
+            if _face_detector is not None:
+                if frame_count % 2 == 1:
+                    try:
+                        thief_embs = registry.load_embeddings()
+                        annotated, fd_res = _face_detector.detect(annotated, thief_embs)
+                        face_results = {
+                            "thief_match": fd_res["thief_match"],
+                            "face_cover":  fd_res["face_cover"],
+                            "faces_count": fd_res["faces_count"],
+                            "faces":       fd_res.get("faces", []),
+                        }
+                    except Exception as exc:
+                        logger.debug("FaceDetector error: %s", exc)
+                else:
+                    _draw_cached_faces(annotated, face_results.get("faces", []), float(det_cfg.get("face_cover_threshold", 0.55)))
 
-        # ── Face detection (landmarks + covering + thief match) ─
-        face_results = {
-            "thief_match": {"detected": False, "confidence": 0.0, "name": None, "id": None},
-            "face_cover":  {"detected": False, "confidence": 0.0, "cover_type": None},
-            "faces_count": 0,
-        }
-        if _face_detector is not None:
-            try:
-                thief_embs = registry.load_embeddings()
-                annotated, fd_res = _face_detector.detect(annotated, thief_embs)
-                face_results = {
-                    "thief_match": fd_res["thief_match"],
-                    "face_cover":  fd_res["face_cover"],
-                    "faces_count": fd_res["faces_count"],
-                }
-            except Exception as exc:
-                logger.debug("FaceDetector error: %s", exc)
+            # Save state for future frame reuse
+            prev_detections = {
+                "activity": activity_results,
+                "gesture": gesture_results,
+                "face": face_results,
+                "object": object_results,
+                "pose": pose_results,
+            }
+            prev_annotated = annotated.copy()
 
         # ── Determine threat level ───────────────────────────
         threat_level = "none"
@@ -515,13 +626,13 @@ def _detection_loop():
                 cv2.imwrite(snap_path, annotated)
 
                 incident = {
-                    "id":           uuid.uuid4().hex[:12],
-                    "timestamp":    ts,
-                    "threat_type":  alert_type,
-                    "level":        threat_level,
-                    "confidence":   round(float(alert_conf), 3),
-                    "image":        snap_name,
-                    "image_url":    f"/api/captures/image/{snap_name}",
+                    "id":              uuid.uuid4().hex[:12],
+                    "timestamp":       ts,
+                    "threat_type":     alert_type,
+                    "level":           threat_level,
+                    "confidence":      round(float(alert_conf), 3),
+                    "image":           snap_name,
+                    "image_url":       f"/api/captures/image/{snap_name}",
                 }
                 _append_json(INCIDENTS_LOG, incident)
 
@@ -830,6 +941,7 @@ def test_call():
     data = request.get_json(force=True, silent=True) or {}
     _log_alert(data.get("threat_type", "Test Call"), "call", "Test call triggered")
     return jsonify({"success": True, "message": "Test call started"})
+
 
 
 # ── Captures ─────────────────────────────────────────────────

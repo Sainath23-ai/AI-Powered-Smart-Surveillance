@@ -5,26 +5,88 @@ Uses the MediaPipe Tasks API (face_landmarker) for:
   • Multi-signal face covering detection (mask/scarf/hood/sunglasses)
   • Geometric embedding-based thief matching
   • Real-time annotated frame output
+
+Compatible versions (verified):
+  mediapipe  >= 0.10.0   (tested: 0.10.35)
+  opencv-python >= 4.5.0 (tested: 4.13.0)
+  numpy      >= 1.21.0   (tested: 2.4.6)
 """
 
+# ── Standard library ──────────────────────────────────────────
 import logging
 import math
 import os
+import sys
 import urllib.request
 
-import cv2
-import numpy as np
+# ── Third-party: Computer Vision ─────────────────────────────
+import cv2          # opencv-python >= 4.5.0
+import numpy as np  # numpy >= 1.21.0
 
 logger = logging.getLogger("FaceDetector")
 
-# ── MediaPipe Tasks API ───────────────────────────────────────
+# ── Runtime version validation ────────────────────────────────
+def _check_versions():
+    """Warn on known-bad version combinations at import time."""
+    import importlib.metadata as _meta
+    try:
+        mp_ver  = tuple(int(x) for x in _meta.version("mediapipe").split(".")[:2])
+        np_ver  = tuple(int(x) for x in np.__version__.split(".")[:2])
+        cv_ver  = tuple(int(x) for x in cv2.__version__.split(".")[:2])
+
+        if mp_ver < (0, 10):
+            logger.warning(
+                "FaceDetector: mediapipe %s detected. Version >= 0.10.0 required "
+                "for the Tasks API (FaceLandmarker). Upgrade: pip install 'mediapipe>=0.10.0'",
+                _meta.version("mediapipe"),
+            )
+        if np_ver >= (2, 0) and mp_ver < (0, 10, 9):
+            logger.warning(
+                "FaceDetector: numpy %s + mediapipe %s may conflict. "
+                "If errors occur, run: pip install 'mediapipe>=0.10.9'",
+                np.__version__, _meta.version("mediapipe"),
+            )
+        if cv_ver < (4, 5):
+            logger.warning(
+                "FaceDetector: opencv %s detected. Version >= 4.5.0 recommended.",
+                cv2.__version__,
+            )
+    except Exception:
+        pass  # version checks are advisory only
+
+_check_versions()
+
+# ── MediaPipe Tasks API with compatibility guard ──────────────
+# Requires: mediapipe >= 0.10.0
+# Provides: mp, mp_python.BaseOptions, mp_vision.FaceLandmarker,
+#           mp_vision.FaceLandmarkerOptions, mp_vision.RunningMode,
+#           mp.Image, mp.ImageFormat
 try:
-    import mediapipe as mp
-    from mediapipe.tasks import python as mp_python
-    from mediapipe.tasks.python import vision as mp_vision
+    import mediapipe as mp                              # core mediapipe package
+    from mediapipe.tasks import python as mp_python     # BaseOptions lives here
+    from mediapipe.tasks.python import vision as mp_vision  # FaceLandmarker, RunningMode
     _MP_AVAILABLE = True
+except ImportError as err:
+    logger.warning(
+        "FaceDetector: mediapipe not installed. "
+        "Run: pip install 'mediapipe>=0.10.0'  Error: %s", err
+    )
+    _MP_AVAILABLE = False
 except Exception as exc:
-    logger.warning("MediaPipe Tasks unavailable: %s", exc)
+    exc_str = str(exc).lower()
+    if any(kw in exc_str for kw in ("numpy", "c-api", "core", "abi", "module compiled")):
+        logger.error(
+            "\n=================================================================\n"
+            "FaceDetector – IMPORT ERROR: NumPy/MediaPipe C-API mismatch.\n"
+            "Installed numpy: %s | Python: %s\n"
+            "Fix options (try in order):\n"
+            "  1) pip install 'mediapipe>=0.10.9'\n"
+            "  2) pip install 'numpy<2.0.0'\n"
+            "=================================================================",
+            np.__version__, sys.version.split()[0],
+        )
+    else:
+        logger.warning("FaceDetector: unexpected import error: %s", exc)
     _MP_AVAILABLE = False
 
 # ── Model URL & local path ────────────────────────────────────

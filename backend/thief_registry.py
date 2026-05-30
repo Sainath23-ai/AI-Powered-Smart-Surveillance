@@ -21,6 +21,7 @@ class ThiefRegistry:
         self.root = os.path.abspath(base_dir or REGISTRY_DIR)
         self.index_path = os.path.join(self.root, "registry.json")
         self._lock = threading.Lock()
+        self._cached_embeddings = None  # Cache for list of (entry, embedding)
         os.makedirs(self.root, exist_ok=True)
         if not os.path.exists(self.index_path):
             self._write([])
@@ -69,17 +70,26 @@ class ThiefRegistry:
             records = [r for r in records if r.get("id") != thief_id]
             records.insert(0, entry)
             self._write(records)
+            self._cached_embeddings = None  # Invalidate cache
 
         return entry
 
     def load_embeddings(self):
-        """Return list of (entry, embedding vector)."""
-        pairs = []
-        for entry in self.list_thieves():
-            emb_path = os.path.join(self.root, entry["id"], "embedding.npy")
-            if os.path.isfile(emb_path):
-                pairs.append((entry, np.load(emb_path)))
-        return pairs
+        """Return list of (entry, embedding vector). Uses in-memory cache."""
+        with self._lock:
+            if self._cached_embeddings is not None:
+                return self._cached_embeddings
+
+            pairs = []
+            for entry in self._read():
+                emb_path = os.path.join(self.root, entry["id"], "embedding.npy")
+                if os.path.isfile(emb_path):
+                    try:
+                        pairs.append((entry, np.load(emb_path)))
+                    except Exception:
+                        pass
+            self._cached_embeddings = pairs
+            return pairs
 
     def delete_thief(self, thief_id: str) -> bool:
         with self._lock:
@@ -88,6 +98,7 @@ class ThiefRegistry:
             if len(new_records) == len(records):
                 return False
             self._write(new_records)
+            self._cached_embeddings = None  # Invalidate cache
 
         person_dir = os.path.join(self.root, thief_id)
         if os.path.isdir(person_dir):

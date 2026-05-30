@@ -2,25 +2,88 @@
 Gesture Detector – SafeGuard AI
 Uses the MediaPipe Tasks API (hand_landmarker) to detect hand gestures,
 specifically the "Signal for Help" (Open Palm -> Closed SOS Fist).
+
+Compatible versions (verified):
+  mediapipe  >= 0.10.0   (tested: 0.10.35)
+  opencv-python >= 4.5.0 (tested: 4.13.0)
+  numpy      >= 1.21.0   (tested: 2.4.6)
 """
 
+# ── Standard library ──────────────────────────────────────────
 import logging
 import math
 import os
+import sys
 import urllib.request
-import cv2
-import numpy as np
+
+# ── Third-party: Computer Vision ─────────────────────────────
+import cv2          # opencv-python >= 4.5.0
+import numpy as np  # numpy >= 1.21.0
 
 logger = logging.getLogger("GestureDetector")
 
-# ── MediaPipe Tasks API ───────────────────────────────────────
+# ── Runtime version validation ────────────────────────────────
+def _check_versions():
+    """Warn on known-bad version combinations at import time."""
+    import importlib.metadata as _meta
+    try:
+        mp_ver = tuple(int(x) for x in _meta.version("mediapipe").split(".")[:2])
+        np_ver = tuple(int(x) for x in np.__version__.split(".")[:2])
+        cv_ver = tuple(int(x) for x in cv2.__version__.split(".")[:2])
+
+        if mp_ver < (0, 10):
+            logger.warning(
+                "GestureDetector: mediapipe %s detected. Version >= 0.10.0 required "
+                "for the Tasks API (HandLandmarker). Upgrade: pip install 'mediapipe>=0.10.0'",
+                _meta.version("mediapipe"),
+            )
+        if np_ver >= (2, 0) and mp_ver < (0, 10, 9):
+            logger.warning(
+                "GestureDetector: numpy %s + mediapipe %s may conflict. "
+                "If errors occur, run: pip install 'mediapipe>=0.10.9'",
+                np.__version__, _meta.version("mediapipe"),
+            )
+        if cv_ver < (4, 5):
+            logger.warning(
+                "GestureDetector: opencv %s detected. Version >= 4.5.0 recommended.",
+                cv2.__version__,
+            )
+    except Exception:
+        pass  # version checks are advisory only
+
+_check_versions()
+
+# ── MediaPipe Tasks API with compatibility guard ──────────────
+# Requires: mediapipe >= 0.10.0
+# Provides: mp, mp_python.BaseOptions, mp_vision.HandLandmarker,
+#           mp_vision.HandLandmarkerOptions, mp_vision.RunningMode,
+#           mp.Image, mp.ImageFormat
 try:
-    import mediapipe as mp
-    from mediapipe.tasks import python as mp_python
-    from mediapipe.tasks.python import vision as mp_vision
+    import mediapipe as mp                              # core mediapipe package
+    from mediapipe.tasks import python as mp_python     # BaseOptions lives here
+    from mediapipe.tasks.python import vision as mp_vision  # HandLandmarker, RunningMode
     _MP_AVAILABLE = True
+except ImportError as err:
+    logger.warning(
+        "GestureDetector: mediapipe not installed. "
+        "Run: pip install 'mediapipe>=0.10.0'  Error: %s", err
+    )
+    _MP_AVAILABLE = False
 except Exception as exc:
-    logger.warning("MediaPipe Tasks unavailable: %s", exc)
+    exc_str = str(exc).lower()
+    if any(kw in exc_str for kw in ("numpy", "c-api", "core", "abi", "module compiled")):
+        logger.error(
+            "\n=================================================================\n"
+            "GestureDetector – IMPORT ERROR: NumPy/MediaPipe C-API mismatch.\n"
+            "Installed numpy: %s | Python: %s\n"
+            "Fix options (try in order):\n"
+            "  1) pip install 'mediapipe>=0.10.9'\n"
+            "  2) pip install 'numpy<2.0.0'\n"
+            "=================================================================",
+            np.__version__, sys.version.split()[0],
+        )
+    else:
+        logger.warning("GestureDetector: unexpected import error: %s", exc)
     _MP_AVAILABLE = False
 
 _MODEL_URL = (
@@ -113,6 +176,8 @@ class GestureDetector:
         for hand_lms in result.hand_landmarks:
             # Get points
             pts = [(lm.x * w, lm.y * h) for lm in hand_lms]
+            if len(pts) < 21:
+                continue
 
             # Calculate palm size
             palm_size = self._dist(pts[0], pts[9])
@@ -139,13 +204,12 @@ class GestureDetector:
             )
 
             # Heuristics for the "Signal for Help" gestures:
-            # 1. Open Palm (initial help request): all 4 fingers extended, thumb extended outwards
+            # 1. Open Palm (initial help request): all 4 fingers extended, thumb extended outwards OR tucked (Stage 1 of Signal for Help allows either)
             open_palm = (
                 index_extended and middle_extended and ring_extended and pinky_extended
-                and (not thumb_tucked)
             )
 
-            # 2. Closed SOS Fist: fingers closed (folded) over the tucked thumb
+            # 2. Closed SOS Fist: fingers closed (folded) over the tucked thumb (Stage 2)
             sos_fist = (
                 (not index_extended) and (not middle_extended) and
                 (not ring_extended) and (not pinky_extended) and
@@ -205,7 +269,7 @@ class GestureDetector:
             cv2.rectangle(annotated, (0, 81), (w, 105), (200, 0, 200), -1)
             cv2.putText(
                 annotated,
-                f"🆘 SOS GESTURE: {best_gesture_type} ({best_confidence:.0%})",
+                f"SOS GESTURE: {best_gesture_type} ({best_confidence:.0%})",
                 (8, 98),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
