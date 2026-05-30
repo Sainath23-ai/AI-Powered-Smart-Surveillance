@@ -29,6 +29,9 @@ let startTime = null;
 let uptimeTimer = null;
 let sseSource = null;
 let currentFilter = 'all';
+let selectModeActive = false;
+let selectedIncidentIds = new Set();
+let renderedIncidentsList = [];
 
 // ── DOM References ─────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -839,6 +842,7 @@ async function loadIncidents() {
 }
 
 function renderIncidents(incidents) {
+  renderedIncidentsList = incidents;
   const grid = $('incidents-grid');
   if (!grid) return;
   if (!incidents.length) {
@@ -849,12 +853,16 @@ function renderIncidents(incidents) {
     const imgSrc = inc.image_url ? captureUrl(inc.image_url) : (inc.image ? captureUrl(`/api/captures/image/${inc.image}`) : '');
     const level = inc.level === 'critical' ? 'critical' : 'warning';
     const videoLink = inc.video_url
-      ? `<a href="${captureUrl(inc.video_url)}" target="_blank" rel="noopener">▶ View clip</a>`
-      : (inc.video ? `<a href="${captureUrl(`/api/captures/video/${inc.video}`)}" target="_blank" rel="noopener">▶ View clip</a>` : '');
+      ? `<a href="${captureUrl(inc.video_url)}" target="_blank" rel="noopener" style="align-self: center;">▶ View clip</a>`
+      : (inc.video ? `<a href="${captureUrl(`/api/captures/video/${inc.video}`)}" target="_blank" rel="noopener" style="align-self: center;">▶ View clip</a>` : '');
     const title = escapeHtml(inc.threat_type || 'Suspicious Activity');
     const ts = escapeHtml(inc.timestamp || '');
+    const isChecked = selectedIncidentIds.has(inc.id);
     return `
-    <article class="incident-card ${level}">
+    <article class="incident-card ${level}" data-incident-id="${inc.id}" style="${isChecked && selectModeActive ? 'border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow);' : ''}">
+      <div class="incident-select-wrap ${selectModeActive ? '' : 'hidden'}">
+        <input type="checkbox" class="incident-checkbox" data-id="${inc.id}" ${isChecked ? 'checked' : ''}/>
+      </div>
       <img class="incident-thumb" src="${imgSrc}" alt="${title}" loading="lazy"
            onerror="this.src='';this.alt='Image unavailable';this.classList.add('thumb-missing')"/>
       <div class="incident-body">
@@ -864,13 +872,67 @@ function renderIncidents(incidents) {
           <span>Confidence: ${Math.round((inc.confidence || 0) * 100)}%</span>
           <span>Level: ${escapeHtml(inc.level || 'warning')}</span>
         </div>
-        <div class="incident-actions">
-          ${imgSrc ? `<a href="${imgSrc}" target="_blank" rel="noopener">Open photo</a>` : ''}
+        <div class="incident-actions" style="align-items: center;">
+          ${imgSrc ? `<a href="${imgSrc}" target="_blank" rel="noopener" style="align-self: center;">Open photo</a>` : ''}
           ${videoLink}
+          <button type="button" class="btn btn-danger btn-sm" data-delete-incident="${inc.id}" style="margin-left: auto; ${selectModeActive ? 'display: none !important;' : ''}">Delete</button>
         </div>
       </div>
     </article>`;
   }).join('');
+
+  grid.querySelectorAll('[data-delete-incident]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Remove this capture from suspicious history?')) return;
+      try {
+        const res = await fetch(`${API}/incidents/${btn.dataset.deleteIncident}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete request failed');
+        showToast('Capture removed');
+        loadIncidents();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Handle Select Checkbox changes
+  grid.querySelectorAll('.incident-checkbox').forEach(cb => {
+    cb.addEventListener('change', e => {
+      const id = cb.dataset.id;
+      if (cb.checked) {
+        selectedIncidentIds.add(id);
+      } else {
+        selectedIncidentIds.delete(id);
+      }
+      updateSelectButtonStates();
+      
+      // Update visual border of the parent card dynamically
+      const card = cb.closest('.incident-card');
+      if (card) {
+        if (cb.checked) {
+          card.style.borderColor = 'var(--accent)';
+          card.style.boxShadow = '0 0 12px var(--accent-glow)';
+        } else {
+          card.style.borderColor = '';
+          card.style.boxShadow = '';
+        }
+      }
+    });
+  });
+
+  // Support clicking the entire card to toggle selection
+  grid.querySelectorAll('.incident-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (!selectModeActive) return;
+      if (e.target.closest('a') || e.target.closest('button')) return;
+      
+      const cb = card.querySelector('.incident-checkbox');
+      if (cb && e.target !== cb) {
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change'));
+      }
+    });
+  });
 }
 
 // ── Alerts Page ────────────────────────────────────────────
@@ -911,6 +973,103 @@ function renderAlerts(alerts) {
     </div>`).join('');
 }
 
+// ── Multiple Select Controls ────────────────────────────────
+function updateSelectButtonStates() {
+  const count = selectedIncidentIds.size;
+  const delBtn = $('delete-selected-history-btn');
+  const countEl = $('selected-count');
+  if (countEl) countEl.textContent = count;
+  
+  if (delBtn) {
+    delBtn.disabled = count === 0;
+  }
+}
+
+function initSelectModeControls() {
+  const toggleBtn = $('toggle-select-mode-btn');
+  const selectAllBtn = $('select-all-history-btn');
+  const deleteBtn = $('delete-selected-history-btn');
+
+  if (!toggleBtn) return;
+
+  toggleBtn.addEventListener('click', () => {
+    selectModeActive = !selectModeActive;
+    selectedIncidentIds.clear();
+    
+    if (selectModeActive) {
+      toggleBtn.innerHTML = '❌ Exit Select Mode';
+      toggleBtn.classList.remove('btn-outline');
+      toggleBtn.classList.add('btn-primary');
+      selectAllBtn?.classList.remove('hidden');
+      deleteBtn?.classList.remove('hidden');
+    } else {
+      toggleBtn.innerHTML = '☑️ Select Mode';
+      toggleBtn.classList.add('btn-outline');
+      toggleBtn.classList.remove('btn-primary');
+      selectAllBtn?.classList.add('hidden');
+      deleteBtn?.classList.add('hidden');
+    }
+    
+    renderIncidents(renderedIncidentsList);
+    updateSelectButtonStates();
+  });
+
+  selectAllBtn?.addEventListener('click', () => {
+    if (!renderedIncidentsList.length) return;
+    
+    const allSelected = renderedIncidentsList.every(inc => selectedIncidentIds.has(inc.id));
+    if (allSelected) {
+      selectedIncidentIds.clear();
+    } else {
+      renderedIncidentsList.forEach(inc => selectedIncidentIds.add(inc.id));
+    }
+    
+    renderIncidents(renderedIncidentsList);
+    updateSelectButtonStates();
+  });
+
+  deleteBtn?.addEventListener('click', async () => {
+    const ids = Array.from(selectedIncidentIds);
+    if (!ids.length) return;
+
+    if (!confirm(`Delete all ${ids.length} selected captures from suspicious history?`)) return;
+
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '⏳ Deleting...';
+
+    try {
+      const res = await fetch(`${API}/incidents/batch-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+
+      if (!res.ok) {
+        throw new Error('Batch delete request failed');
+      }
+
+      showToast(`Successfully removed ${ids.length} captures`);
+      selectedIncidentIds.clear();
+      
+      // Auto-exit select mode
+      selectModeActive = false;
+      toggleBtn.innerHTML = '☑️ Select Mode';
+      toggleBtn.classList.add('btn-outline');
+      toggleBtn.classList.remove('btn-primary');
+      selectAllBtn?.classList.add('hidden');
+      deleteBtn?.classList.add('hidden');
+
+      loadIncidents();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      deleteBtn.disabled = false;
+      updateSelectButtonStates();
+      deleteBtn.innerHTML = `🗑️ Delete Selected (<span id="selected-count">${selectedIncidentIds.size}</span>)`;
+    }
+  });
+}
+
 // ── Toast Notifications ────────────────────────────────────
 function showToast(message, type = 'success') {
   const t = document.createElement('div');
@@ -939,6 +1098,7 @@ async function ensureBackendIsThisApp() {
 // ── Initial Load ───────────────────────────────────────────
 loadSettings();
 loadThieves();
+initSelectModeControls();
 startStatusPoll();
 ensureBackendIsThisApp();
 fetch(`${API}/status`, { cache: 'no-store' })
@@ -954,4 +1114,5 @@ fetch(`${API}/status`, { cache: 'no-store' })
   .catch(() => {});
 
 console.log('%c SafeGuard AI Dashboard Ready', 'color:#6366f1;font-size:16px;font-weight:bold');
+
 

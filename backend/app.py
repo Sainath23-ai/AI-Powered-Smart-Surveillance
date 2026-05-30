@@ -903,6 +903,71 @@ def list_incidents():
     return jsonify(records)
 
 
+@app.route("/api/incidents/<incident_id>", methods=["DELETE"])
+def delete_incident(incident_id):
+    records = _read_json(INCIDENTS_LOG)
+    found = False
+    new_records = []
+    for r in records:
+        if r.get("id") == incident_id:
+            found = True
+            # delete file
+            image_filename = r.get("image")
+            if image_filename:
+                image_path = os.path.join(CAPTURES_DIR, image_filename)
+                if os.path.isfile(image_path):
+                    try:
+                        os.remove(image_path)
+                    except Exception as exc:
+                        logger.error("Failed to delete image %s: %s", image_path, exc)
+        else:
+            new_records.append(r)
+    
+    if not found:
+        return jsonify({"error": "Not found"}), 404
+        
+    _write_json(INCIDENTS_LOG, new_records)
+    with _state_lock:
+        _state["incidents_count"] = len(new_records)
+    return jsonify({"status": "deleted"})
+
+
+@app.route("/api/incidents/batch-delete", methods=["POST"])
+def batch_delete_incidents():
+    data = request.get_json(force=True, silent=True) or {}
+    ids_to_delete = data.get("ids", [])
+    if not isinstance(ids_to_delete, list) or not ids_to_delete:
+        return jsonify({"error": "No IDs provided"}), 400
+
+    records = _read_json(INCIDENTS_LOG)
+    new_records = []
+    deleted_count = 0
+    ids_set = set(ids_to_delete)
+
+    for r in records:
+        if r.get("id") in ids_set:
+            deleted_count += 1
+            # delete file
+            image_filename = r.get("image")
+            if image_filename:
+                image_path = os.path.join(CAPTURES_DIR, image_filename)
+                if os.path.isfile(image_path):
+                    try:
+                        os.remove(image_path)
+                    except Exception as exc:
+                        logger.error("Failed to delete image %s: %s", image_path, exc)
+        else:
+            new_records.append(r)
+
+    _write_json(INCIDENTS_LOG, new_records)
+    with _state_lock:
+        _state["incidents_count"] = len(new_records)
+
+    return jsonify({"status": "deleted", "count": deleted_count})
+
+
+
+
 # ── Alerts ───────────────────────────────────────────────────
 @app.route("/api/alerts", methods=["GET"])
 def list_alerts():

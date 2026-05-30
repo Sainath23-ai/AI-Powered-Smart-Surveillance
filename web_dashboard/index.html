@@ -376,7 +376,12 @@
     <div class="alerts-toolbar">
       <h2>Suspicious Activity History</h2>
       <p class="toolbar-sub">Photos and clips saved to <code>data/suspicious_captures/</code> when the camera detects a threat.</p>
-      <button class="btn btn-outline" id="refresh-history-btn">🔄 Refresh</button>
+      <div class="filter-row" style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-outline" id="refresh-history-btn">🔄 Refresh</button>
+        <button class="btn btn-outline" id="toggle-select-mode-btn">☑️ Select Mode</button>
+        <button class="btn btn-primary hidden" id="select-all-history-btn">✔️ Select All</button>
+        <button class="btn btn-danger hidden" id="delete-selected-history-btn">🗑️ Delete Selected (<span id="selected-count">0</span>)</button>
+      </div>
     </div>
     <div class="incidents-grid" id="incidents-grid">
       <div class="empty-state">
