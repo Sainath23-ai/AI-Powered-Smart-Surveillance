@@ -1,5 +1,41 @@
 [
   {
+    "id": "92cb107d6a9a",
+    "timestamp": "2026-05-30 11:03:57",
+    "threat_type": "SOS Gesture: Open Palm (Help Distress)",
+    "level": "critical",
+    "confidence": 0.85,
+    "image": "incident_0f8df1ac.jpg",
+    "image_url": "/api/captures/image/incident_0f8df1ac.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: SOS Gesture: Open Palm (Help Distress)"
+  },
+  {
+    "id": "8badd357338d",
+    "timestamp": "2026-05-30 11:03:14",
+    "threat_type": "SOS Gesture: SOS Fist (Help Signal)",
+    "level": "critical",
+    "confidence": 0.95,
+    "image": "incident_ffee30d6.jpg",
+    "image_url": "/api/captures/image/incident_ffee30d6.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: SOS Gesture: SOS Fist (Help Signal)"
+  },
+  {
+    "id": "0d7bc7d7d4c9",
+    "timestamp": "2026-05-30 11:03:09",
+    "threat_type": "SOS Gesture: Open Palm (Help Distress)",
+    "level": "critical",
+    "confidence": 0.85,
+    "image": "incident_48b93b97.jpg",
+    "image_url": "/api/captures/image/incident_48b93b97.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: SOS Gesture: Open Palm (Help Distress)"
+  },
+  {
     "id": "e053be9a2527",
     "timestamp": "2026-05-29 20:12:12",
     "threat_type": "SOS Gesture: Open Palm (Help Distress)",
