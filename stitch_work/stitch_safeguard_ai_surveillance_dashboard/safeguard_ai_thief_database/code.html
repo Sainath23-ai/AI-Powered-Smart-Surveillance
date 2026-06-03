@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SafeGuard AI - Thief Database</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#e5e2e1",
+                        "surface-container": "#201f1f",
+                        "on-error": "#690005",
+                        "surface": "#141313",
+                        "surface-tint": "#c6c6c7",
+                        "surface-variant": "#353434",
+                        "on-error-container": "#ffdad6",
+                        "surface-container-high": "#2a2a2a",
+                        "tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#464747",
+                        "tertiary-fixed": "#e2e2e2",
+                        "surface-container-lowest": "#0e0e0e",
+                        "primary": "#ffffff",
+                        "outline-variant": "#444748",
+                        "surface-dim": "#141313",
+                        "inverse-surface": "#e5e2e1",
+                        "on-surface-variant": "#c4c7c8",
+                        "on-tertiary-fixed": "#1a1c1c",
+                        "tertiary-container": "#e2e2e2",
+                        "on-secondary": "#303031",
+                        "secondary-fixed-dim": "#c7c6c6",
+                        "inverse-on-surface": "#313030",
+                        "primary-container": "#e2e2e2",
+                        "secondary-container": "#464747",
+                        "tertiary-fixed-dim": "#c6c6c7",
+                        "secondary": "#c7c6c6",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-container-highest": "#353434",
+                        "surface-bright": "#3a3939",
+                        "on-primary-fixed-variant": "#454747",
+                        "on-primary-fixed": "#1a1c1c",
+                        "error": "#ffb4ab",
+                        "primary-fixed-dim": "#c6c6c7",
+                        "on-tertiary": "#2f3131",
+                        "background": "#141313",
+                        "error-container": "#93000a",
+                        "inverse-primary": "#5d5f5f",
+                        "outline": "#8e9192",
+                        "secondary-fixed": "#e3e2e2",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "on-secondary-container": "#b5b5b5",
+                        "on-surface": "#e5e2e1",
+                        "on-primary-container": "#636565",
+                        "on-primary": "#2f3131",
+                        "primary-fixed": "#e2e2e2",
+                        "on-tertiary-container": "#636565",
+                        "on-tertiary-fixed-variant": "#454747"
+                    },
+                    "spacing": {
+                        "md": "16px",
+                        "margin": "24px",
+                        "lg": "24px",
+                        "xl": "32px",
+                        "gutter": "16px",
+                        "sm": "8px",
+                        "base": "4px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "mono-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "mono-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-xl": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #000000;
+            color: #e5e2e1;
+            font-family: 'Inter', sans-serif;
+        }
+        .form-input-focus:focus {
+            border-color: #FFFFFF !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #141313;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333333;
+        }
+    </style>
+<style id="safeguard-monochrome-ux">
+  :root { color-scheme: dark; }
+  html, body {
+    background: #000 !important;
+    color: #fff !important;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  }
+  body {
+    min-height: 100vh;
+    background-image: linear-gradient(180deg, rgba(255,255,255,.035), transparent 220px) !important;
+  }
+  * { letter-spacing: 0 !important; }
+  ::selection { background: #fff; color: #000; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #000; }
+  ::-webkit-scrollbar-thumb { background: #303030; border: 2px solid #000; border-radius: 999px; }
+
+  .bg-background,
+  .bg-surface,
+  .bg-surface-dim,
+  .bg-surface-container-lowest,
+  .bg-surface-container-low,
+  .bg-surface-container,
+  .bg-surface-container-high,
+  .bg-surface-container-highest,
+  [class*="bg-background"],
+  [class*="bg-surface"] {
+    background-color: #090909 !important;
+  }
+  .bg-surface-variant,
+  .hover\:bg-surface-variant:hover,
+  [class*="bg-surface-variant"] {
+    background-color: #151515 !important;
+  }
+  .bg-primary,
+  .bg-tertiary,
+  .bg-primary-container,
+  .bg-tertiary-container,
+  [class*="bg-primary"],
+  [class*="bg-tertiary"] {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+  .bg-error,
+  .bg-error-container,
+  .bg-secondary,
+  .bg-secondary-container,
+  [class*="bg-error"],
+  [class*="bg-secondary"],
+  [class*="bg-red"],
+  [class*="bg-green"],
+  [class*="bg-blue"],
+  [class*="bg-cyan"],
+  [class*="bg-purple"],
+  [class*="bg-amber"],
+  [class*="bg-yellow"],
+  [class*="bg-emerald"],
+  [class*="bg-rose"] {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  .text-primary,
+  .text-on-surface,
+  .text-on-background,
+  .text-tertiary,
+  [class*="text-primary"],
+  [class*="text-on-surface"],
+  [class*="text-on-background"],
+  [class*="text-tertiary"] {
+    color: #fff !important;
+  }
+  .text-on-surface-variant,
+  .text-outline,
+  .text-secondary,
+  [class*="text-on-surface-variant"],
+  [class*="text-outline"],
+  [class*="text-secondary"],
+  [class*="text-green"],
+  [class*="text-red"],
+  [class*="text-blue"],
+  [class*="text-cyan"],
+  [class*="text-purple"],
+  [class*="text-amber"],
+  [class*="text-yellow"],
+  [class*="text-emerald"],
+  [class*="text-rose"] {
+    color: #b7b7b7 !important;
+  }
+  .text-on-primary,
+  .text-on-tertiary,
+  .text-on-error,
+  [class*="text-on-primary"],
+  [class*="text-on-tertiary"],
+  [class*="text-on-error"] {
+    color: #000 !important;
+  }
+
+  .border,
+  [class*="border-outline"],
+  [class*="border-surface"],
+  [class*="border-primary"],
+  [class*="divide-outline"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #2c2c2c !important;
+  }
+  .hover\:border-primary:hover,
+  .focus\:border-primary:focus,
+  button:hover,
+  a:hover,
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #fff !important;
+  }
+
+  aside {
+    width: 260px !important;
+    background: rgba(4,4,4,.96) !important;
+    border-right: 1px solid #242424 !important;
+    backdrop-filter: blur(14px);
+  }
+  aside img { filter: grayscale(1) contrast(1.1); }
+  aside a,
+  nav a {
+    border: 1px solid transparent;
+    border-radius: 8px !important;
+    min-height: 40px;
+  }
+  aside a:hover,
+  nav a:hover {
+    background: #151515 !important;
+    border-color: #2f2f2f !important;
+    color: #fff !important;
+  }
+  aside a.bg-primary,
+  nav a.bg-primary {
+    background: #fff !important;
+    border-color: #fff !important;
+    color: #000 !important;
+  }
+
+  header {
+    background: rgba(5,5,5,.9) !important;
+    border-bottom: 1px solid #242424 !important;
+    backdrop-filter: blur(16px);
+  }
+  main { background: transparent !important; }
+  section > div,
+  article,
+  form,
+  [class*="bg-surface"] {
+    box-shadow: none !important;
+  }
+  [class*="shadow"] { box-shadow: none !important; }
+  [class*="rounded"] { border-radius: 8px !important; }
+  .rounded-full,
+  [class*="rounded-full"] { border-radius: 999px !important; }
+
+  button,
+  input,
+  select,
+  textarea {
+    border-radius: 8px !important;
+  }
+  button,
+  a[role="button"],
+  input,
+  select,
+  textarea {
+    transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .18s ease !important;
+  }
+  button:hover,
+  a[role="button"]:hover { transform: translateY(-1px); }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(255,255,255,.18) !important;
+  }
+  input,
+  select,
+  textarea {
+    background: #050505 !important;
+    border: 1px solid #2c2c2c !important;
+    color: #fff !important;
+  }
+  input::placeholder,
+  textarea::placeholder { color: #777 !important; }
+
+  .material-symbols-outlined { filter: grayscale(1); }
+  img { filter: grayscale(1); }
+  img[src^="data:image"] { filter: grayscale(1) contrast(1.08); }
+
+  [class*="animate-pulse"] { animation-duration: 1.6s !important; }
+  [class*="tracking-wider"],
+  [class*="tracking-widest"],
+  .uppercase {
+    letter-spacing: .06em !important;
+  }
+
+  @media (max-width: 768px) {
+    aside {
+      position: sticky !important;
+      inset: 0 0 auto 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      max-height: none !important;
+      display: flex !important;
+      padding: 12px !important;
+    }
+    aside nav { display: flex !important; flex-direction: row !important; overflow-x: auto !important; gap: 8px !important; }
+    aside nav a { flex: 0 0 auto; }
+    header, main { padding-left: 16px !important; }
+    main { padding-right: 16px !important; }
+  }
+</style>
+</head>
+<body class="bg-background text-on-background overflow-hidden">
+<!-- Sidebar Navigation Shell -->
+<aside class="fixed left-0 top-0 h-screen w-[240px] border-r border-outline-variant bg-background hidden md:flex flex-col justify-between py-margin">
+<div class="flex flex-col gap-xl">
+<div class="px-md">
+<h1 class="text-headline-md font-headline-md font-bold text-primary">SafeGuard AI</h1>
+<p class="text-label-md font-label-md text-on-surface-variant">AI Surveillance System</p>
+</div>
+<nav class="flex flex-col">
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="videocam">videocam</span>
+<span class="text-label-md font-label-md">Live Monitor</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="text-label-md font-label-md">Alert History</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="warning">warning</span>
+<span class="text-label-md font-label-md">Suspicious History</span>
+</a>
+<!-- ACTIVE NAV ITEM -->
+<a class="flex items-center gap-sm bg-primary text-on-primary rounded-none px-md py-sm opacity-90" href="#">
+<span class="material-symbols-outlined" data-icon="person_search" style="font-variation-settings: 'FILL' 1;">person_search</span>
+<span class="text-label-md font-label-md">Thief Database</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-label-md font-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="developer_board">developer_board</span>
+<span class="text-label-md font-label-md">ESP32 Control</span>
+</a>
+</nav>
+</div>
+<div class="px-md flex flex-col gap-sm">
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-md font-label-md">System Active</span>
+</div>
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]" data-icon="router">router</span>
+<span class="text-label-md font-label-md">ESP32 Online</span>
+</div>
+</div>
+</aside>
+<!-- Top Navigation Bar -->
+<header class="flex justify-between items-center w-full h-16 px-margin md:pl-[264px] fixed top-0 border-b border-outline-variant bg-background z-40">
+<div class="flex items-center gap-md">
+<h2 class="text-headline-sm font-headline-sm text-primary">Database</h2>
+<div class="hidden md:flex gap-md border-l border-outline-variant pl-md ml-xs">
+<a class="text-on-surface-variant text-body-sm font-body-sm hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-on-surface-variant text-body-sm font-body-sm hover:text-primary transition-colors" href="#">Monitor</a>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm text-on-surface-variant">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary" data-icon="schedule">schedule</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary" data-icon="shield">shield</span>
+</div>
+<button class="px-md py-1.5 border border-outline-variant text-body-sm font-body-sm text-primary hover:bg-surface-variant transition-colors">STOP</button>
+<button class="px-md py-1.5 bg-primary text-on-primary text-body-sm font-body-sm hover:opacity-90 transition-opacity">START SYSTEM</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-16 pb-16 md:pb-0 md:pl-[240px] h-screen overflow-hidden">
+<div class="h-full p-gutter grid grid-cols-12 gap-gutter">
+<!-- Left: Register Known Thief Form -->
+<section class="col-span-12 lg:col-span-5 h-full overflow-y-auto">
+<div class="border border-outline-variant bg-surface p-lg h-full flex flex-col gap-lg">
+<div class="border-b border-outline-variant pb-md">
+<h3 class="text-headline-md font-headline-md text-primary">Register Known Thief</h3>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Enroll a new subject into the biometric recognition database.</p>
+</div>
+<form class="flex flex-col gap-md">
+<div class="flex flex-col gap-xs">
+<label class="text-label-md font-label-md text-on-surface-variant">FULL NAME</label>
+<input class="bg-black border border-outline-variant px-md py-sm text-body-md font-body-md text-on-background form-input-focus transition-all" placeholder="Subject Name" type="text"/>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="text-label-md font-label-md text-on-surface-variant">ALIAS / STREET NAME</label>
+<input class="bg-black border border-outline-variant px-md py-sm text-body-md font-body-md text-on-background form-input-focus transition-all" placeholder="Known Alias" type="text"/>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="text-label-md font-label-md text-on-surface-variant">CRIME DETAILS</label>
+<textarea class="bg-black border border-outline-variant px-md py-sm text-body-md font-body-md text-on-background form-input-focus transition-all resize-none" placeholder="Description of prior incidents or threat level..." rows="4"></textarea>
+</div>
+<div class="flex flex-col gap-xs">
+<label class="text-label-md font-label-md text-on-surface-variant">FACE PHOTO UPLOAD</label>
+<div class="border-2 border-dashed border-outline-variant bg-surface-container-lowest p-xl flex flex-col items-center justify-center gap-sm cursor-pointer hover:border-primary transition-colors group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[32px]" data-icon="add_a_photo">add_a_photo</span>
+<span class="text-body-sm font-body-sm text-on-surface-variant">Drag and drop or click to browse</span>
+</div>
+</div>
+<div class="mt-md">
+<button class="w-full bg-primary text-on-primary py-md text-label-md font-label-md hover:opacity-90 transition-opacity" type="submit">COMMIT TO DATABASE</button>
+</div>
+</form>
+</div>
+</section>
+<!-- Right: Enrolled Profiles -->
+<section class="col-span-12 lg:col-span-7 h-full flex flex-col">
+<div class="border border-outline-variant bg-surface h-full flex flex-col">
+<div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface">
+<div>
+<h3 class="text-headline-md font-headline-md text-primary">Enrolled Profiles</h3>
+<p class="text-body-sm font-body-sm text-on-surface-variant">Biometric identity records for real-time matching.</p>
+</div>
+<div class="flex gap-sm">
+<div class="flex items-center gap-xs px-sm py-1 bg-surface-container-high border border-outline-variant">
+<span class="w-2 h-2 rounded-full bg-[#34C759]"></span>
+<span class="text-mono-sm font-mono-sm">LIVE SYNC</span>
+</div>
+</div>
+</div>
+<!-- Profiles List -->
+<div class="flex-1 overflow-y-auto p-gutter">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Profile Card 1 -->
+<div class="border border-outline-variant p-md flex items-center gap-md hover:bg-surface-container-low transition-colors group cursor-pointer">
+<div class="w-16 h-16 grayscale border border-outline-variant shrink-0">
+<img alt="Subject Profile" class="w-full h-full object-cover" data-alt="A clinical, high-contrast black and white mugshot of a stern-looking man with short hair and sharp features. The lighting is harsh and direct, creating deep shadows that emphasize facial topography for biometric analysis. The background is a flat, neutral gray, consistent with law enforcement database photography. The overall aesthetic is utilitarian, sterile, and security-focused." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD44Vyr5yz-jhseqRSiQcHcIow8JGY7bF3TjP7YZog7Z6qcQ_zIy88HnKFmyXsC8tCwRMmy7Mc-bITptrmBqNnr4dyja72-BiBBk91fqt7MDVEffqPUalCCHUhCgFdDAfqWiJNzg-kTsmJo75afVPvxKtdR9DoHL3LnrPxFF3gh36hmNZtmK2SpWD6A1-89lpzyV5fJuxsbgsybcW8IbdA9J0iBqc5e7Wgvvrz_Ca2P4BxUkUnIBTr3A_Pq9w-AxRqnfb7GaQ_3RMg"/>
+</div>
+<div class="flex flex-col gap-xs overflow-hidden">
+<h4 class="text-body-md font-headline-md text-primary truncate">Marcus 'Ghost' Vane</h4>
+<span class="text-mono-sm font-mono-sm text-on-surface-variant">ID: 992-BX-04</span>
+<div class="flex gap-xs items-center">
+<span class="px-1.5 py-0.5 bg-error-container text-white text-[9px] font-bold">HIGH RISK</span>
+<span class="text-body-sm font-body-sm text-on-surface-variant truncate">3 Incidents</span>
+</div>
+</div>
+</div>
+<!-- Profile Card 2 -->
+<div class="border border-outline-variant p-md flex items-center gap-md hover:bg-surface-container-low transition-colors group cursor-pointer">
+<div class="w-16 h-16 grayscale border border-outline-variant shrink-0">
+<img alt="Subject Profile" class="w-full h-full object-cover" data-alt="A stark, monochrome identification portrait of a young woman with a neutral expression. Her hair is pulled back, and the lighting is flat and even, highlighting her distinct facial markers against a dark background. The image has a grainy, surveillance-camera texture, framed in a tight, professional composition meant for facial recognition software analysis." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8PyE3JGC0kiF7uZZimb0NXG7SREpHVKjNSpCbV4IyuqkCT_Z69mkosSXc1iVAKAZ-A6Bnljzy9WmJfbH-dz8XdCLRv8g1zA319azGwynFShD0Qnx4PpbCrIVqXdLUJZ1BaxlaHZSeABoI4wJNeD3YxzxGiStFOr40VhmUAOvzBBdN35vB5CD_DZYsHuj2hV1I9lMTUWvQUKJAu4y2iDsVbcSQcATrQbnEUBEuPzkdG0tL_JIulWv1RDZUiBqJUyhDG3_P_nZuEac"/>
+</div>
+<div class="flex flex-col gap-xs overflow-hidden">
+<h4 class="text-body-md font-headline-md text-primary truncate">Elena Rossi</h4>
+<span class="text-mono-sm font-mono-sm text-on-surface-variant">ID: 881-CA-12</span>
+<div class="flex gap-xs items-center">
+<span class="px-1.5 py-0.5 bg-surface-container-highest text-white text-[9px] font-bold">LOW RISK</span>
+<span class="text-body-sm font-body-sm text-on-surface-variant truncate">1 Incident</span>
+</div>
+</div>
+</div>
+<!-- Profile Card 3 -->
+<div class="border border-outline-variant p-md flex items-center gap-md hover:bg-surface-container-low transition-colors group cursor-pointer">
+<div class="w-16 h-16 grayscale border border-outline-variant shrink-0">
+<img alt="Subject Profile" class="w-full h-full object-cover" data-alt="A high-contrast, black and white close-up of a middle-aged man with a beard, looking directly at the camera with a blank expression. The lighting is dramatic, casting one side of the face into darkness while clearly defining the other. The image style is gritty and technical, evocative of a digital intelligence dossier or security record." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_EB7OH4C5Fzc8xB_mRm8SZ1eGAzTjXYk06D6g1q_xwe1dFkAgTp3Oc1VGNyQLrOEIB2_oe0iJULf4qN9YhXjM-n76PyXVYXt_uOhXpg4oQ-lpE4ToL3gbUyUumYRQzu5WEtdI9nRMOhFLdAuYdXyVWzQ4LJruSUkx_8q1mieCvLOz5ZeoPbGhu0d_o7UvS_lzY4r36GpsvlECp99MAGRerXkEBloFpbvHDMY2Lz9AKEHFXi9VksNMV0IzbzxROT7_ObvSPhK1mz0"/>
+</div>
+<div class="flex flex-col gap-xs overflow-hidden">
+<h4 class="text-body-md font-headline-md text-primary truncate">Thomas Wright</h4>
+<span class="text-mono-sm font-mono-sm text-on-surface-variant">ID: 723-KW-99</span>
+<div class="flex gap-xs items-center">
+<span class="px-1.5 py-0.5 bg-error-container text-white text-[9px] font-bold">CRITICAL</span>
+<span class="text-body-sm font-body-sm text-on-surface-variant truncate">8 Incidents</span>
+</div>
+</div>
+</div>
+<!-- Profile Card 4 -->
+<div class="border border-outline-variant p-md flex items-center gap-md hover:bg-surface-container-low transition-colors group cursor-pointer">
+<div class="w-16 h-16 grayscale border border-outline-variant shrink-0">
+<img alt="Subject Profile" class="w-full h-full object-cover" data-alt="A clean-shaven man in a surveillance-style grayscale photograph. He is positioned in a three-quarter view, with sharp overhead lighting emphasizing his jawline and facial structure. The aesthetic is extremely clinical and de-saturated, fitting a high-tech security database. The background is pitch black, isolating the subject entirely." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkICSqSbbK2x-6x2s_5XXfaLU257XNY1HVm4NFin_tQ-e17V1rzEyikRzWtcXvOCwTPg7LgoVquiIxpStYB2bJ8I39T8NfjAFIBoYEuy__NFF1--7t982iA3_fYMYJ65aUKHAFK8aX6jtStn6dCXk-x3g0xrLRQDZV-X30qoeDOdujipe6kzZpjmYDHBTelrxGzPJ2s5GzyPrlPPKjodnQUh3QLma0G-YDu2sN7I3_F4P8yVmS7Jh0JDsKJ6u2cEI-nysMR54ddiQ"/>
+</div>
+<div class="flex flex-col gap-xs overflow-hidden">
+<h4 class="text-body-md font-headline-md text-primary truncate">Julian Thorne</h4>
+<span class="text-mono-sm font-mono-sm text-on-surface-variant">ID: 614-MM-54</span>
+<div class="flex gap-xs items-center">
+<span class="px-1.5 py-0.5 bg-secondary-container text-white text-[9px] font-bold">MONITORING</span>
+<span class="text-body-sm font-body-sm text-on-surface-variant truncate">0 Incidents</span>
+</div>
+</div>
+</div>
+<!-- Profile Card 5 -->
+<div class="border border-outline-variant p-md flex items-center gap-md hover:bg-surface-container-low transition-colors group cursor-pointer">
+<div class="w-16 h-16 grayscale border border-outline-variant shrink-0">
+<img alt="Subject Profile" class="w-full h-full object-cover" data-alt="A professional biometric capture of a woman, rendered in stark black and white. The lighting is perfectly balanced to reveal all facial details without glare. The subject is centered, staring forward with a neutral gaze. The image looks like it has been processed through a sharpening filter for digital surveillance analysis." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDNJj6OZLuu3yWFEBhyKnz_oTmbLN7d9y-qfcj-V3mwHKvxu_SLRhhSwGttW5S7JrZBoBqWM57UA3u8wYebe6BdwRfUyMHRJnBGJ6AfAVUwO-UlM3Q0ONhWiU6LlQkHrcsEV93xDsCW8SteDI_nilcu-gvta2QK9zI8ct93zmemowfobxYY9QugXais45LwiVccJqlev2bzGDVsAIx1YEI93BW604UyOT3W9USsXpz4kkeoQjLh4pHmdSWFbCdLRAL_Q_-8C4XpOA"/>
+</div>
+<div class="flex flex-col gap-xs overflow-hidden">
+<h4 class="text-body-md font-headline-md text-primary truncate">Sarah Laine</h4>
+<span class="text-mono-sm font-mono-sm text-on-surface-variant">ID: 552-ZX-11</span>
+<div class="flex gap-xs items-center">
+<span class="px-1.5 py-0.5 bg-surface-container-highest text-white text-[9px] font-bold">LOW RISK</span>
+<span class="text-body-sm font-body-sm text-on-surface-variant truncate">1 Incident</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Bottom Navigation Bar (Mobile only) -->
+<footer class="fixed bottom-0 left-0 w-full flex justify-around items-center py-sm border-t border-outline-variant bg-surface-container-lowest z-50 md:hidden">
+<button class="flex flex-col items-center justify-center text-on-surface-variant active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="text-mono-sm font-mono-sm">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="videocam">videocam</span>
+<span class="text-mono-sm font-mono-sm">Live</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="text-mono-sm font-mono-sm">Alerts</span>
+</button>
+<button class="flex flex-col items-center justify-center text-primary active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="person_search" style="font-variation-settings: 'FILL' 1;">person_search</span>
+<span class="text-mono-sm font-mono-sm">Database</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+<span class="text-mono-sm font-mono-sm">More</span>
+</button>
+</footer>
+<script>
+        // Simple micro-interactions for buttons
+        document.querySelectorAll('button, a').forEach(elem => {
+            elem.addEventListener('mousedown', () => {
+                elem.style.transform = 'scale(0.98)';
+            });
+            elem.addEventListener('mouseup', () => {
+                elem.style.transform = 'scale(1)';
+            });
+            elem.addEventListener('mouseleave', () => {
+                elem.style.transform = 'scale(1)';
+            });
+        });
+    </script>
+</body></html>

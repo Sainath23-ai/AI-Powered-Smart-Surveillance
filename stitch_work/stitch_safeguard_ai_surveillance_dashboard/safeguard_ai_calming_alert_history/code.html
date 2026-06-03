@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SafeGuard AI - Alert History</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#10131a",
+                        "on-error": "#690005",
+                        "secondary-fixed": "#83fc89",
+                        "on-tertiary-fixed": "#001944",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#363940",
+                        "surface-container-highest": "#32353c",
+                        "inverse-primary": "#0060aa",
+                        "surface-tint": "#a2c9ff",
+                        "outline-variant": "#414752",
+                        "inverse-surface": "#e1e2eb",
+                        "on-tertiary": "#002d6d",
+                        "on-secondary-container": "#00320a",
+                        "tertiary-fixed-dim": "#afc6ff",
+                        "outline": "#8b919d",
+                        "primary": "#a2c9ff",
+                        "on-tertiary-fixed-variant": "#004299",
+                        "surface-container-high": "#272a31",
+                        "on-surface-variant": "#c0c7d4",
+                        "surface-container": "#1d2026",
+                        "on-secondary-fixed": "#002105",
+                        "error-container": "#93000a",
+                        "surface-container-low": "#191c22",
+                        "on-secondary": "#00390d",
+                        "secondary-container": "#27a640",
+                        "surface": "#10131a",
+                        "surface-container-lowest": "#0b0e14",
+                        "on-primary-fixed": "#001c38",
+                        "primary-container": "#58a6ff",
+                        "on-secondary-fixed-variant": "#005317",
+                        "tertiary-fixed": "#d9e2ff",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-fixed-variant": "#004882",
+                        "background": "#10131a",
+                        "on-surface": "#e1e2eb",
+                        "on-primary-container": "#003a6b",
+                        "inverse-on-surface": "#2e3037",
+                        "tertiary": "#afc6ff",
+                        "primary-fixed": "#d3e4ff",
+                        "secondary": "#67df70",
+                        "on-primary": "#00315c",
+                        "tertiary-container": "#76a1ff",
+                        "on-tertiary-container": "#00367e",
+                        "secondary-fixed-dim": "#67df70",
+                        "surface-variant": "#32353c",
+                        "on-background": "#e1e2eb",
+                        "primary-fixed-dim": "#a2c9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-desktop": "48px",
+                        "margin-mobile": "16px",
+                        "lg": "40px",
+                        "xl": "64px",
+                        "sm": "12px",
+                        "md": "24px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Hanken Grotesk"],
+                        "label-sm": ["JetBrains Mono"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-md": ["Inter"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "label-md": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "500"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #10131a; color: #e1e2eb; font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #10131a; }
+        ::-webkit-scrollbar-thumb { background: #32353c; }
+        .data-row:hover { background-color: #191c22; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style id="safeguard-monochrome-ux">
+  :root { color-scheme: dark; }
+  html, body {
+    background: #000 !important;
+    color: #fff !important;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  }
+  body {
+    min-height: 100vh;
+    background-image: linear-gradient(180deg, rgba(255,255,255,.035), transparent 220px) !important;
+  }
+  * { letter-spacing: 0 !important; }
+  ::selection { background: #fff; color: #000; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #000; }
+  ::-webkit-scrollbar-thumb { background: #303030; border: 2px solid #000; border-radius: 999px; }
+
+  .bg-background,
+  .bg-surface,
+  .bg-surface-dim,
+  .bg-surface-container-lowest,
+  .bg-surface-container-low,
+  .bg-surface-container,
+  .bg-surface-container-high,
+  .bg-surface-container-highest,
+  [class*="bg-background"],
+  [class*="bg-surface"] {
+    background-color: #090909 !important;
+  }
+  .bg-surface-variant,
+  .hover\:bg-surface-variant:hover,
+  [class*="bg-surface-variant"] {
+    background-color: #151515 !important;
+  }
+  .bg-primary,
+  .bg-tertiary,
+  .bg-primary-container,
+  .bg-tertiary-container,
+  [class*="bg-primary"],
+  [class*="bg-tertiary"] {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+  .bg-error,
+  .bg-error-container,
+  .bg-secondary,
+  .bg-secondary-container,
+  [class*="bg-error"],
+  [class*="bg-secondary"],
+  [class*="bg-red"],
+  [class*="bg-green"],
+  [class*="bg-blue"],
+  [class*="bg-cyan"],
+  [class*="bg-purple"],
+  [class*="bg-amber"],
+  [class*="bg-yellow"],
+  [class*="bg-emerald"],
+  [class*="bg-rose"] {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  .text-primary,
+  .text-on-surface,
+  .text-on-background,
+  .text-tertiary,
+  [class*="text-primary"],
+  [class*="text-on-surface"],
+  [class*="text-on-background"],
+  [class*="text-tertiary"] {
+    color: #fff !important;
+  }
+  .text-on-surface-variant,
+  .text-outline,
+  .text-secondary,
+  [class*="text-on-surface-variant"],
+  [class*="text-outline"],
+  [class*="text-secondary"],
+  [class*="text-green"],
+  [class*="text-red"],
+  [class*="text-blue"],
+  [class*="text-cyan"],
+  [class*="text-purple"],
+  [class*="text-amber"],
+  [class*="text-yellow"],
+  [class*="text-emerald"],
+  [class*="text-rose"] {
+    color: #b7b7b7 !important;
+  }
+  .text-on-primary,
+  .text-on-tertiary,
+  .text-on-error,
+  [class*="text-on-primary"],
+  [class*="text-on-tertiary"],
+  [class*="text-on-error"] {
+    color: #000 !important;
+  }
+
+  .border,
+  [class*="border-outline"],
+  [class*="border-surface"],
+  [class*="border-primary"],
+  [class*="divide-outline"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #2c2c2c !important;
+  }
+  .hover\:border-primary:hover,
+  .focus\:border-primary:focus,
+  button:hover,
+  a:hover,
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #fff !important;
+  }
+
+  aside {
+    width: 260px !important;
+    background: rgba(4,4,4,.96) !important;
+    border-right: 1px solid #242424 !important;
+    backdrop-filter: blur(14px);
+  }
+  aside img { filter: grayscale(1) contrast(1.1); }
+  aside a,
+  nav a {
+    border: 1px solid transparent;
+    border-radius: 8px !important;
+    min-height: 40px;
+  }
+  aside a:hover,
+  nav a:hover {
+    background: #151515 !important;
+    border-color: #2f2f2f !important;
+    color: #fff !important;
+  }
+  aside a.bg-primary,
+  nav a.bg-primary {
+    background: #fff !important;
+    border-color: #fff !important;
+    color: #000 !important;
+  }
+
+  header {
+    background: rgba(5,5,5,.9) !important;
+    border-bottom: 1px solid #242424 !important;
+    backdrop-filter: blur(16px);
+  }
+  main { background: transparent !important; }
+  section > div,
+  article,
+  form,
+  [class*="bg-surface"] {
+    box-shadow: none !important;
+  }
+  [class*="shadow"] { box-shadow: none !important; }
+  [class*="rounded"] { border-radius: 8px !important; }
+  .rounded-full,
+  [class*="rounded-full"] { border-radius: 999px !important; }
+
+  button,
+  input,
+  select,
+  textarea {
+    border-radius: 8px !important;
+  }
+  button,
+  a[role="button"],
+  input,
+  select,
+  textarea {
+    transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .18s ease !important;
+  }
+  button:hover,
+  a[role="button"]:hover { transform: translateY(-1px); }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(255,255,255,.18) !important;
+  }
+  input,
+  select,
+  textarea {
+    background: #050505 !important;
+    border: 1px solid #2c2c2c !important;
+    color: #fff !important;
+  }
+  input::placeholder,
+  textarea::placeholder { color: #777 !important; }
+
+  .material-symbols-outlined { filter: grayscale(1); }
+  img { filter: grayscale(1); }
+  img[src^="data:image"] { filter: grayscale(1) contrast(1.08); }
+
+  [class*="animate-pulse"] { animation-duration: 1.6s !important; }
+  [class*="tracking-wider"],
+  [class*="tracking-widest"],
+  .uppercase {
+    letter-spacing: .06em !important;
+  }
+
+  @media (max-width: 768px) {
+    aside {
+      position: sticky !important;
+      inset: 0 0 auto 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      max-height: none !important;
+      display: flex !important;
+      padding: 12px !important;
+    }
+    aside nav { display: flex !important; flex-direction: row !important; overflow-x: auto !important; gap: 8px !important; }
+    aside nav a { flex: 0 0 auto; }
+    header, main { padding-left: 16px !important; }
+    main { padding-right: 16px !important; }
+  }
+</style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden">
+<!-- SideNavBar (Shared Component) -->
+<aside class="fixed left-0 top-0 h-screen w-[240px] border-r border-outline-variant bg-surface-container-lowest hidden md:flex flex-col justify-between py-md z-50">
+<div>
+<div class="px-md mb-xl">
+<h1 class="text-headline-md font-headline-lg text-primary">SafeGuard AI</h1>
+<p class="text-label-sm font-label-sm text-on-surface-variant opacity-70">AI Surveillance System</p>
+</div>
+<nav class="flex flex-col">
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="videocam">videocam</span>
+<span class="text-label-md font-label-md">Live Monitor</span>
+</a>
+<!-- Active Tab -->
+<a class="flex items-center gap-sm bg-primary-container text-on-primary-container rounded-none px-md py-sm transition-opacity duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="text-label-md font-label-md">Alert History</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="warning">warning</span>
+<span class="text-label-md font-label-md">Suspicious History</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span class="text-label-md font-label-md">Thief Database</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-label-md font-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="developer_board">developer_board</span>
+<span class="text-label-md font-label-md">ESP32 Control</span>
+</a>
+</nav>
+</div>
+<div class="px-md flex flex-col gap-xs">
+<div class="flex items-center gap-sm text-on-surface-variant py-xs">
+<span class="material-symbols-outlined text-[16px] text-secondary" data-icon="check_circle">check_circle</span>
+<span class="text-label-sm font-label-sm">System Active</span>
+</div>
+<div class="flex items-center gap-sm text-on-surface-variant py-xs">
+<span class="material-symbols-outlined text-[16px] text-secondary" data-icon="router">router</span>
+<span class="text-label-sm font-label-sm">ESP32 Online</span>
+</div>
+</div>
+</aside>
+<!-- TopNavBar (Shared Component) -->
+<header class="flex justify-between items-center w-full h-16 px-md md:pl-[264px] docked full-width top-0 border-b border-outline-variant bg-surface-container-lowest z-40">
+<h2 class="text-headline-sm font-headline-lg text-on-surface">Alert History</h2>
+<div class="flex items-center gap-md">
+<div class="hidden md:flex items-center gap-sm">
+<button class="text-on-surface-variant hover:text-primary transition-colors px-sm py-xs border border-outline-variant rounded">
+<span class="material-symbols-outlined text-[20px]" data-icon="schedule">schedule</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors px-sm py-xs border border-outline-variant rounded">
+<span class="material-symbols-outlined text-[20px]" data-icon="shield">shield</span>
+</button>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant mx-xs"></div>
+<button class="bg-primary text-on-primary px-md py-xs font-label-md text-label-md rounded transition-transform active:scale-95">
+            START SYSTEM
+        </button>
+<button class="border border-outline-variant text-primary px-md py-xs font-label-md text-label-md rounded hover:bg-surface-container-high transition-colors">
+            STOP
+        </button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="md:pl-[240px] pt-16 min-h-screen bg-background">
+<div class="p-md max-w-7xl mx-auto">
+<!-- Filters Header -->
+<section class="mb-lg flex flex-col md:flex-row md:items-center justify-between gap-md">
+<div class="flex gap-sm overflow-x-auto pb-sm md:pb-0 no-scrollbar">
+<button class="px-md py-xs bg-primary text-on-primary rounded text-label-md font-label-md transition-colors">
+                    All
+                </button>
+<button class="px-md py-xs border border-outline-variant rounded text-on-surface-variant hover:text-primary hover:border-primary text-label-md font-label-md transition-colors">
+                    Email
+                </button>
+<button class="px-md py-xs border border-outline-variant rounded text-on-surface-variant hover:text-primary hover:border-primary text-label-md font-label-md transition-colors">
+                    SMS
+                </button>
+<button class="px-md py-xs border border-outline-variant rounded text-on-surface-variant hover:text-primary hover:border-primary text-label-md font-label-md transition-colors">
+                    Call
+                </button>
+</div>
+<div class="flex items-center gap-sm">
+<div class="relative group">
+<span class="absolute left-sm top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant group-focus-within:text-primary" data-icon="search">search</span>
+<input class="bg-surface-container-lowest border border-outline-variant rounded text-body-md font-body-md pl-xl pr-md py-xs focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-colors w-full md:w-64" placeholder="Search alerts..." type="text"/>
+</div>
+<button class="border border-outline-variant rounded p-xs flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+</div>
+</section>
+<!-- Alerts Table -->
+<section class="border border-outline-variant bg-surface-container-lowest rounded-lg overflow-hidden shadow-xl">
+<!-- Table Header -->
+<div class="hidden md:grid grid-cols-12 gap-gutter px-md py-sm border-b border-outline-variant bg-surface-container-low text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">
+<div class="col-span-1">Method</div>
+<div class="col-span-3">Threat Title</div>
+<div class="col-span-2">Timestamp</div>
+<div class="col-span-4">Message Preview</div>
+<div class="col-span-2 text-right">Status</div>
+</div>
+<!-- Table Rows -->
+<div class="flex flex-col">
+<!-- Row 1 -->
+<div class="data-row grid grid-cols-12 gap-gutter items-center px-md py-md md:py-sm border-b border-outline-variant transition-colors cursor-pointer">
+<div class="col-span-2 md:col-span-1 flex items-center">
+<span class="material-symbols-outlined text-primary" data-icon="sms">sms</span>
+</div>
+<div class="col-span-10 md:col-span-3">
+<div class="text-body-md font-semibold text-on-surface">Intrusion Detected: Perimeter A</div>
+<div class="md:hidden text-label-sm text-on-surface-variant opacity-70">2m ago • SMS</div>
+</div>
+<div class="hidden md:block col-span-2 text-body-md text-on-surface-variant">
+                        2m ago
+                    </div>
+<div class="hidden md:block col-span-4 text-body-md text-on-surface-variant truncate">
+                        Motion detected in sensitive zone. Automated lockdown initiated.
+                    </div>
+<div class="col-span-12 md:col-span-2 flex justify-end mt-sm md:mt-0">
+<span class="px-xs py-[2px] bg-primary text-on-primary text-label-sm rounded uppercase">SENT</span>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="data-row grid grid-cols-12 gap-gutter items-center px-md py-md md:py-sm border-b border-outline-variant transition-colors cursor-pointer">
+<div class="col-span-2 md:col-span-1 flex items-center">
+<span class="material-symbols-outlined text-primary" data-icon="mail">mail</span>
+</div>
+<div class="col-span-10 md:col-span-3">
+<div class="text-body-md font-semibold text-on-surface">System Update Failure</div>
+<div class="md:hidden text-label-sm text-on-surface-variant opacity-70">15m ago • Email</div>
+</div>
+<div class="hidden md:block col-span-2 text-body-md text-on-surface-variant">
+                        15m ago
+                    </div>
+<div class="hidden md:block col-span-4 text-body-md text-on-surface-variant truncate">
+                        Critical failure during OTA firmware update for ESP32-CAM unit 04.
+                    </div>
+<div class="col-span-12 md:col-span-2 flex justify-end mt-sm md:mt-0">
+<span class="px-xs py-[2px] border border-error text-error text-label-sm rounded uppercase">FAILED</span>
+</div>
+</div>
+<!-- Row 3 -->
+<div class="data-row grid grid-cols-12 gap-gutter items-center px-md py-md md:py-sm border-b border-outline-variant transition-colors cursor-pointer">
+<div class="col-span-2 md:col-span-1 flex items-center">
+<span class="material-symbols-outlined text-primary" data-icon="call">call</span>
+</div>
+<div class="col-span-10 md:col-span-3">
+<div class="text-body-md font-semibold text-on-surface">Emergency Dispatch Call</div>
+<div class="md:hidden text-label-sm text-on-surface-variant opacity-70">1h ago • Call</div>
+</div>
+<div class="hidden md:block col-span-2 text-body-md text-on-surface-variant">
+                        1h ago
+                    </div>
+<div class="hidden md:block col-span-4 text-body-md text-on-surface-variant truncate">
+                        Automated voice call dispatched to security supervisor.
+                    </div>
+<div class="col-span-12 md:col-span-2 flex justify-end mt-sm md:mt-0">
+<span class="px-xs py-[2px] bg-primary text-on-primary text-label-sm rounded uppercase">SENT</span>
+</div>
+</div>
+<!-- Row 4 -->
+<div class="data-row grid grid-cols-12 gap-gutter items-center px-md py-md md:py-sm border-b border-outline-variant transition-colors cursor-pointer">
+<div class="col-span-2 md:col-span-1 flex items-center">
+<span class="material-symbols-outlined text-primary" data-icon="sms">sms</span>
+</div>
+<div class="col-span-10 md:col-span-3">
+<div class="text-body-md font-semibold text-on-surface">Loitering Alert: Main Entrance</div>
+<div class="md:hidden text-label-sm text-on-surface-variant opacity-70">3h ago • SMS</div>
+</div>
+<div class="hidden md:block col-span-2 text-body-md text-on-surface-variant">
+                        3h ago
+                    </div>
+<div class="hidden md:block col-span-4 text-body-md text-on-surface-variant truncate">
+                        Individual identified as 'High Risk' detected loitering for 300s.
+                    </div>
+<div class="col-span-12 md:col-span-2 flex justify-end mt-sm md:mt-0">
+<span class="px-xs py-[2px] bg-primary text-on-primary text-label-sm rounded uppercase">SENT</span>
+</div>
+</div>
+<!-- Row 5 -->
+<div class="data-row grid grid-cols-12 gap-gutter items-center px-md py-md md:py-sm border-b border-outline-variant transition-colors cursor-pointer">
+<div class="col-span-2 md:col-span-1 flex items-center">
+<span class="material-symbols-outlined text-primary" data-icon="mail">mail</span>
+</div>
+<div class="col-span-10 md:col-span-3">
+<div class="text-body-md font-semibold text-on-surface">Daily Summary Report</div>
+<div class="md:hidden text-label-sm text-on-surface-variant opacity-70">12h ago • Email</div>
+</div>
+<div class="hidden md:block col-span-2 text-body-md text-on-surface-variant">
+                        12h ago
+                    </div>
+<div class="hidden md:block col-span-4 text-body-md text-on-surface-variant truncate">
+                        24-hour analytical summary of all detected events and system health.
+                    </div>
+<div class="col-span-12 md:col-span-2 flex justify-end mt-sm md:mt-0">
+<span class="px-xs py-[2px] bg-primary text-on-primary text-label-sm rounded uppercase">SENT</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Pagination/Footer Stats -->
+<section class="mt-md flex flex-col md:flex-row items-center justify-between gap-md">
+<p class="text-label-sm font-label-sm text-on-surface-variant uppercase">Showing 1-15 of 128 recorded alerts</p>
+<div class="flex gap-xs">
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary rounded text-label-md font-label-md">1</button>
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded hover:bg-surface-container-high text-label-md font-label-md text-on-surface-variant">2</button>
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded hover:bg-surface-container-high text-label-md font-label-md text-on-surface-variant">3</button>
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</section>
+</div>
+</main>
+<!-- BottomNavBar (Shared Component - Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-sm border-t border-outline-variant bg-surface-container-lowest z-50 md:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-high transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="text-label-sm font-label-sm">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-high transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="videocam">videocam</span>
+<span class="text-label-sm font-label-sm">Live</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary active:bg-surface-container-high transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="text-label-sm font-label-sm">Alerts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-high transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="person_search">person_search</span>
+<span class="text-label-sm font-label-sm">Database</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-high transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+<span class="text-label-sm font-label-sm">More</span>
+</a>
+</nav>
+<script>
+    // Subtle background scanline effect adapted for the new palette
+    const canvas = document.createElement('div');
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '100';
+    canvas.style.background = 'linear-gradient(rgba(16, 19, 26, 0) 50%, rgba(0, 0, 0, 0.03) 50%), linear-gradient(90deg, rgba(88, 166, 255, 0.005), rgba(0, 0, 0, 0), rgba(88, 166, 255, 0.005))';
+    canvas.style.backgroundSize = '100% 4px, 100% 100%';
+    canvas.style.opacity = '0.5';
+    document.body.appendChild(canvas);
+</script>
+</body></html>

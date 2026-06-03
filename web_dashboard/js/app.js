@@ -1095,12 +1095,117 @@ async function ensureBackendIsThisApp() {
   } catch { /* ignore */ }
 }
 
+// ── Analytics & Reports ────────────────────────────────────
+let currentAnalyticsRange = 'day';
+
+async function loadAnalytics(range = 'day') {
+  currentAnalyticsRange = range;
+
+  // Update toggle button states
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.querySelector(`.range-btn[data-range="${range}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  try {
+    const res = await fetch(`${API}/incidents/stats?range=${range}`);
+    const data = await res.json();
+
+    // Update summary stat cards
+    if ($('ms-total-val'))    $('ms-total-val').textContent = data.total_incidents || 0;
+    if ($('ms-critical-val')) $('ms-critical-val').textContent = data.critical_count || 0;
+    if ($('ms-warning-val'))  $('ms-warning-val').textContent = data.warning_count || 0;
+
+    // Top threat
+    const types = data.threat_types || {};
+    const topThreat = Object.entries(types).sort((a, b) => b[1] - a[1])[0];
+    if ($('ms-threat-val')) {
+      $('ms-threat-val').textContent = topThreat ? topThreat[0] : '—';
+    }
+
+    // Render photo gallery
+    const gallery = $('photo-gallery');
+    const photos = data.recent_photos || [];
+    if ($('gallery-count')) $('gallery-count').textContent = `${photos.length} capture${photos.length !== 1 ? 's' : ''}`;
+
+    if (!photos.length || !gallery) {
+      if (gallery) gallery.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1;padding:32px;">
+          <div class="empty-icon">📷</div>
+          <p>No captures in this time range</p>
+        </div>`;
+      return;
+    }
+
+    gallery.innerHTML = photos.map(p => {
+      const imgSrc = p.image_url ? captureUrl(p.image_url) : '';
+      const level = p.level === 'critical' ? 'critical' : 'warning';
+      const conf = Math.round((p.confidence || 0) * 100);
+      const ts = (p.timestamp || '').split(' ').pop() || '';
+      return `
+        <a class="gallery-item" href="${imgSrc}" target="_blank" rel="noopener" title="${escapeHtml(p.threat_type || '')}">
+          <img class="gallery-thumb" src="${imgSrc}" alt="${escapeHtml(p.threat_type || 'Capture')}" loading="lazy"
+               onerror="this.style.display='none'" />
+          <div class="gallery-overlay">
+            <div class="gallery-overlay-type">
+              <span class="gallery-level-dot ${level}"></span>
+              ${escapeHtml(p.threat_type || 'Unknown')}
+            </div>
+            <div class="gallery-overlay-meta">${ts} · ${conf}%</div>
+          </div>
+        </a>`;
+    }).join('');
+
+  } catch (err) {
+    console.warn('Analytics load failed:', err);
+  }
+}
+
+// Range toggle click handlers
+document.querySelectorAll('.range-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    loadAnalytics(btn.dataset.range);
+  });
+});
+
+// Email report button
+$('send-report-btn')?.addEventListener('click', async () => {
+  const resultEl = $('report-result');
+  const btn = $('send-report-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sending report...';
+  if (resultEl) resultEl.textContent = '';
+
+  try {
+    const res = await fetch(`${API}/report/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ range: currentAnalyticsRange })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message);
+      if (resultEl) resultEl.textContent = `✅ ${data.message}`;
+    } else {
+      showToast(data.message || 'Report failed', 'error');
+      if (resultEl) resultEl.textContent = `❌ ${data.message}`;
+    }
+  } catch (err) {
+    showToast('Backend not reachable', 'error');
+    if (resultEl) resultEl.textContent = '❌ Backend not reachable';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📧 Email Report';
+    setTimeout(() => { if (resultEl) resultEl.textContent = ''; }, 6000);
+  }
+});
+
 // ── Initial Load ───────────────────────────────────────────
 loadSettings();
 loadThieves();
 initSelectModeControls();
 startStatusPoll();
 ensureBackendIsThisApp();
+loadAnalytics('day');
 fetch(`${API}/status`, { cache: 'no-store' })
   .then(r => r.ok ? r.json() : null)
   .then(data => {

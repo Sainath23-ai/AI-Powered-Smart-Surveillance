@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SafeGuard AI - Settings &amp; ESP32 Control</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-background": "#e5e2e1",
+                    "surface-container": "#201f1f",
+                    "on-error": "#690005",
+                    "surface": "#141313",
+                    "surface-tint": "#c6c6c7",
+                    "surface-variant": "#353434",
+                    "on-error-container": "#ffdad6",
+                    "surface-container-high": "#2a2a2a",
+                    "tertiary": "#ffffff",
+                    "on-secondary-fixed-variant": "#464747",
+                    "tertiary-fixed": "#e2e2e2",
+                    "surface-container-lowest": "#0e0e0e",
+                    "primary": "#ffffff",
+                    "outline-variant": "#444748",
+                    "surface-dim": "#141313",
+                    "inverse-surface": "#e5e2e1",
+                    "on-surface-variant": "#c4c7c8",
+                    "on-tertiary-fixed": "#1a1c1c",
+                    "tertiary-container": "#e2e2e2",
+                    "on-secondary": "#303031",
+                    "secondary-fixed-dim": "#c7c6c6",
+                    "inverse-on-surface": "#313030",
+                    "primary-container": "#e2e2e2",
+                    "secondary-container": "#464747",
+                    "tertiary-fixed-dim": "#c6c6c7",
+                    "secondary": "#c7c6c6",
+                    "surface-container-low": "#1c1b1b",
+                    "surface-container-highest": "#353434",
+                    "surface-bright": "#3a3939",
+                    "on-primary-fixed-variant": "#454747",
+                    "on-primary-fixed": "#1a1c1c",
+                    "error": "#ffb4ab",
+                    "primary-fixed-dim": "#c6c6c7",
+                    "on-tertiary": "#2f3131",
+                    "background": "#141313",
+                    "error-container": "#93000a",
+                    "inverse-primary": "#5d5f5f",
+                    "outline": "#8e9192",
+                    "secondary-fixed": "#e3e2e2",
+                    "on-secondary-fixed": "#1b1c1c",
+                    "on-secondary-container": "#b5b5b5",
+                    "on-surface": "#e5e2e1",
+                    "on-primary-container": "#636565",
+                    "on-primary": "#2f3131",
+                    "primary-fixed": "#e2e2e2",
+                    "on-tertiary-container": "#636565",
+                    "on-tertiary-fixed-variant": "#454747"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "md": "16px",
+                    "margin": "24px",
+                    "lg": "24px",
+                    "xl": "32px",
+                    "gutter": "16px",
+                    "sm": "8px",
+                    "base": "4px",
+                    "xs": "4px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "mono-sm": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "body-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "mono-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-xl": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-sm": ["12px", {"lineHeight": "16px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-toggle:checked + .toggle-slider {
+            background-color: #ffffff;
+        }
+        .custom-toggle:checked + .toggle-slider::before {
+            transform: translateX(1.25rem);
+            background-color: #000000;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: #333;
+            height: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            background: #fff;
+            border-radius: 0;
+            cursor: pointer;
+        }
+    </style>
+<style id="safeguard-monochrome-ux">
+  :root { color-scheme: dark; }
+  html, body {
+    background: #000 !important;
+    color: #fff !important;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  }
+  body {
+    min-height: 100vh;
+    background-image: linear-gradient(180deg, rgba(255,255,255,.035), transparent 220px) !important;
+  }
+  * { letter-spacing: 0 !important; }
+  ::selection { background: #fff; color: #000; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #000; }
+  ::-webkit-scrollbar-thumb { background: #303030; border: 2px solid #000; border-radius: 999px; }
+
+  .bg-background,
+  .bg-surface,
+  .bg-surface-dim,
+  .bg-surface-container-lowest,
+  .bg-surface-container-low,
+  .bg-surface-container,
+  .bg-surface-container-high,
+  .bg-surface-container-highest,
+  [class*="bg-background"],
+  [class*="bg-surface"] {
+    background-color: #090909 !important;
+  }
+  .bg-surface-variant,
+  .hover\:bg-surface-variant:hover,
+  [class*="bg-surface-variant"] {
+    background-color: #151515 !important;
+  }
+  .bg-primary,
+  .bg-tertiary,
+  .bg-primary-container,
+  .bg-tertiary-container,
+  [class*="bg-primary"],
+  [class*="bg-tertiary"] {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+  .bg-error,
+  .bg-error-container,
+  .bg-secondary,
+  .bg-secondary-container,
+  [class*="bg-error"],
+  [class*="bg-secondary"],
+  [class*="bg-red"],
+  [class*="bg-green"],
+  [class*="bg-blue"],
+  [class*="bg-cyan"],
+  [class*="bg-purple"],
+  [class*="bg-amber"],
+  [class*="bg-yellow"],
+  [class*="bg-emerald"],
+  [class*="bg-rose"] {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  .text-primary,
+  .text-on-surface,
+  .text-on-background,
+  .text-tertiary,
+  [class*="text-primary"],
+  [class*="text-on-surface"],
+  [class*="text-on-background"],
+  [class*="text-tertiary"] {
+    color: #fff !important;
+  }
+  .text-on-surface-variant,
+  .text-outline,
+  .text-secondary,
+  [class*="text-on-surface-variant"],
+  [class*="text-outline"],
+  [class*="text-secondary"],
+  [class*="text-green"],
+  [class*="text-red"],
+  [class*="text-blue"],
+  [class*="text-cyan"],
+  [class*="text-purple"],
+  [class*="text-amber"],
+  [class*="text-yellow"],
+  [class*="text-emerald"],
+  [class*="text-rose"] {
+    color: #b7b7b7 !important;
+  }
+  .text-on-primary,
+  .text-on-tertiary,
+  .text-on-error,
+  [class*="text-on-primary"],
+  [class*="text-on-tertiary"],
+  [class*="text-on-error"] {
+    color: #000 !important;
+  }
+
+  .border,
+  [class*="border-outline"],
+  [class*="border-surface"],
+  [class*="border-primary"],
+  [class*="divide-outline"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #2c2c2c !important;
+  }
+  .hover\:border-primary:hover,
+  .focus\:border-primary:focus,
+  button:hover,
+  a:hover,
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #fff !important;
+  }
+
+  aside {
+    width: 260px !important;
+    background: rgba(4,4,4,.96) !important;
+    border-right: 1px solid #242424 !important;
+    backdrop-filter: blur(14px);
+  }
+  aside img { filter: grayscale(1) contrast(1.1); }
+  aside a,
+  nav a {
+    border: 1px solid transparent;
+    border-radius: 8px !important;
+    min-height: 40px;
+  }
+  aside a:hover,
+  nav a:hover {
+    background: #151515 !important;
+    border-color: #2f2f2f !important;
+    color: #fff !important;
+  }
+  aside a.bg-primary,
+  nav a.bg-primary {
+    background: #fff !important;
+    border-color: #fff !important;
+    color: #000 !important;
+  }
+
+  header {
+    background: rgba(5,5,5,.9) !important;
+    border-bottom: 1px solid #242424 !important;
+    backdrop-filter: blur(16px);
+  }
+  main { background: transparent !important; }
+  section > div,
+  article,
+  form,
+  [class*="bg-surface"] {
+    box-shadow: none !important;
+  }
+  [class*="shadow"] { box-shadow: none !important; }
+  [class*="rounded"] { border-radius: 8px !important; }
+  .rounded-full,
+  [class*="rounded-full"] { border-radius: 999px !important; }
+
+  button,
+  input,
+  select,
+  textarea {
+    border-radius: 8px !important;
+  }
+  button,
+  a[role="button"],
+  input,
+  select,
+  textarea {
+    transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .18s ease !important;
+  }
+  button:hover,
+  a[role="button"]:hover { transform: translateY(-1px); }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(255,255,255,.18) !important;
+  }
+  input,
+  select,
+  textarea {
+    background: #050505 !important;
+    border: 1px solid #2c2c2c !important;
+    color: #fff !important;
+  }
+  input::placeholder,
+  textarea::placeholder { color: #777 !important; }
+
+  .material-symbols-outlined { filter: grayscale(1); }
+  img { filter: grayscale(1); }
+  img[src^="data:image"] { filter: grayscale(1) contrast(1.08); }
+
+  [class*="animate-pulse"] { animation-duration: 1.6s !important; }
+  [class*="tracking-wider"],
+  [class*="tracking-widest"],
+  .uppercase {
+    letter-spacing: .06em !important;
+  }
+
+  @media (max-width: 768px) {
+    aside {
+      position: sticky !important;
+      inset: 0 0 auto 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      max-height: none !important;
+      display: flex !important;
+      padding: 12px !important;
+    }
+    aside nav { display: flex !important; flex-direction: row !important; overflow-x: auto !important; gap: 8px !important; }
+    aside nav a { flex: 0 0 auto; }
+    header, main { padding-left: 16px !important; }
+    main { padding-right: 16px !important; }
+  }
+</style>
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden">
+<!-- SideNavBar - Predicted Component -->
+<aside class="fixed left-0 top-0 h-screen w-[240px] border-r border-outline-variant bg-background hidden md:flex flex-col justify-between py-margin">
+<div>
+<div class="px-md mb-xl">
+<h1 class="text-headline-md font-headline-md font-bold text-primary">SafeGuard AI</h1>
+<p class="text-label-md font-label-md text-on-surface-variant opacity-70">AI Surveillance System</p>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-label-md font-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined">videocam</span>
+<span class="text-label-md font-label-md">Live Monitor</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="text-label-md font-label-md">Alert History</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined">warning</span>
+<span class="text-label-md font-label-md">Suspicious History</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined">person_search</span>
+<span class="text-label-md font-label-md">Thief Database</span>
+</a>
+<a class="flex items-center gap-sm bg-primary text-on-primary rounded-none px-md py-sm opacity-90 transition-opacity duration-150" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-label-md font-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-sm text-on-surface-variant hover:text-primary px-md py-sm transition-colors hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined">developer_board</span>
+<span class="text-label-md font-label-md">ESP32 Control</span>
+</a>
+</nav>
+</div>
+<div class="px-md space-y-sm">
+<div class="flex items-center gap-sm text-label-md font-label-md text-primary">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>System Active</span>
+</div>
+<div class="flex items-center gap-sm text-label-md font-label-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">router</span>
+<span>ESP32 Online</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-[240px] min-h-screen">
+<!-- TopNavBar - Predicted Component -->
+<header class="flex justify-between items-center w-full h-16 px-margin border-b border-outline-variant bg-background">
+<div class="flex items-center gap-lg">
+<h2 class="text-headline-sm font-headline-sm font-bold text-primary">Settings &amp; Control</h2>
+<nav class="hidden lg:flex items-center gap-md">
+<a class="text-primary border-b-2 border-primary pb-1 text-body-sm font-body-sm" href="#">Configuration</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors text-body-sm font-body-sm" href="#">Diagnostics</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">schedule</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">shield</button>
+</div>
+<div class="h-6 w-[1px] bg-outline-variant"></div>
+<div class="flex items-center gap-sm">
+<button class="border border-outline-variant text-primary px-sm py-xs text-body-sm font-body-sm hover:bg-surface-variant transition-colors">STOP</button>
+<button class="bg-primary text-on-primary px-sm py-xs text-body-sm font-body-sm font-bold hover:opacity-90 transition-opacity">START SYSTEM</button>
+</div>
+</div>
+</header>
+<section class="p-margin max-w-6xl mx-auto">
+<!-- Grid Layout: Settings and ESP32 -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Alert Settings (Bento Style) -->
+<div class="lg:col-span-7 space-y-gutter">
+<div class="border border-outline-variant p-md">
+<div class="flex items-center justify-between border-b border-outline-variant pb-sm mb-md">
+<h3 class="text-headline-md font-headline-md text-primary flex items-center gap-sm">
+<span class="material-symbols-outlined">notifications_active</span>
+                                Alert Channels
+                            </h3>
+<span class="text-mono-sm font-mono-sm text-on-surface-variant">3 ACTIVE</span>
+</div>
+<div class="space-y-md">
+<!-- Email Alert Card -->
+<div class="border border-outline-variant p-sm flex items-center justify-between hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 border border-outline-variant flex items-center justify-center bg-surface-container-low">
+<span class="material-symbols-outlined">mail</span>
+</div>
+<div>
+<p class="text-body-md font-body-md text-primary">Email Notifications</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant opacity-60">admin@safeguard.ai</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="text-mono-sm font-mono-sm border border-outline-variant px-sm py-1 hover:bg-white hover:text-black transition-colors">TEST</button>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only custom-toggle" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-variant transition-colors toggle-slider before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-4 before:w-4 before:transition-transform"></div>
+</label>
+</div>
+</div>
+<!-- Discord Alert Card -->
+<div class="border border-outline-variant p-sm flex items-center justify-between hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 border border-outline-variant flex items-center justify-center bg-surface-container-low">
+<span class="material-symbols-outlined">robot_2</span>
+</div>
+<div>
+<p class="text-body-md font-body-md text-primary">Discord Webhook</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant opacity-60">#security-logs</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="text-mono-sm font-mono-sm border border-outline-variant px-sm py-1 hover:bg-white hover:text-black transition-colors">TEST</button>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only custom-toggle" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-variant transition-colors toggle-slider before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-4 before:w-4 before:transition-transform"></div>
+</label>
+</div>
+</div>
+<!-- Twilio Alert Card -->
+<div class="border border-outline-variant p-sm flex items-center justify-between hover:bg-surface-container transition-colors">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 border border-outline-variant flex items-center justify-center bg-surface-container-low">
+<span class="material-symbols-outlined">sms</span>
+</div>
+<div>
+<p class="text-body-md font-body-md text-primary">Twilio SMS</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant opacity-60">+1 (555) 000-0000</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="text-mono-sm font-mono-sm border border-outline-variant px-sm py-1 hover:bg-white hover:text-black transition-colors">TEST</button>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only custom-toggle" type="checkbox"/>
+<div class="w-10 h-5 bg-surface-variant transition-colors toggle-slider before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-4 before:w-4 before:transition-transform"></div>
+</label>
+</div>
+</div>
+</div>
+</div>
+<!-- System Analytics Teaser -->
+<div class="border border-outline-variant p-md bg-surface-container-lowest">
+<div class="flex items-center justify-between border-b border-outline-variant pb-sm mb-md">
+<h3 class="text-headline-md font-headline-md text-primary">Hardware Status</h3>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+<span class="text-mono-sm font-mono-sm uppercase">Optimized</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-gutter">
+<div class="border border-outline-variant p-sm">
+<p class="text-label-md font-label-md text-on-surface-variant">CPU TEMP</p>
+<p class="text-headline-lg font-headline-lg text-primary">42°C</p>
+<div class="w-full bg-surface-variant h-1 mt-xs">
+<div class="bg-primary h-1 w-[42%]"></div>
+</div>
+</div>
+<div class="border border-outline-variant p-sm">
+<p class="text-label-md font-label-md text-on-surface-variant">MEMORY</p>
+<p class="text-headline-lg font-headline-lg text-primary">1.2 GB</p>
+<div class="w-full bg-surface-variant h-1 mt-xs">
+<div class="bg-primary h-1 w-[28%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: ESP32 Control Panel -->
+<div class="lg:col-span-5 space-y-gutter">
+<div class="border border-outline-variant p-md h-full flex flex-col">
+<div class="flex items-center justify-between border-b border-outline-variant pb-sm mb-md">
+<h3 class="text-headline-md font-headline-md text-primary flex items-center gap-sm">
+<span class="material-symbols-outlined">developer_board</span>
+                                ESP32 Node 01
+                            </h3>
+<button class="material-symbols-outlined text-on-surface-variant">refresh</button>
+</div>
+<div class="flex-grow space-y-lg">
+<!-- Alarm Trigger -->
+<div class="space-y-sm">
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">Emergency Override</p>
+<button class="w-full border-2 border-primary text-primary font-bold py-md hover:bg-primary hover:text-black transition-all active:scale-95 flex items-center justify-center gap-md" id="alarmBtn" onclick="triggerAlarm()">
+<span class="material-symbols-outlined">campaign</span>
+                                    TRIGGER ALARM
+                                </button>
+</div>
+<!-- LED Modes -->
+<div class="space-y-md">
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">Visual Feedback Modes</p>
+<div class="grid grid-cols-3 gap-sm">
+<button class="border border-outline-variant p-sm flex flex-col items-center gap-xs hover:border-primary transition-colors bg-white text-black">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="text-mono-sm">NORMAL</span>
+</button>
+<button class="border border-outline-variant p-sm flex flex-col items-center gap-xs hover:border-primary transition-colors">
+<span class="material-symbols-outlined">warning</span>
+<span class="text-mono-sm">WARN</span>
+</button>
+<button class="border border-outline-variant p-sm flex flex-col items-center gap-xs hover:border-primary transition-colors">
+<span class="material-symbols-outlined">report</span>
+<span class="text-mono-sm">CRIT</span>
+</button>
+</div>
+</div>
+<!-- Brightness Control -->
+<div class="space-y-sm">
+<div class="flex justify-between items-center">
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">LED Brightness</p>
+<span class="text-mono-sm font-mono-sm" id="brightnessVal">85%</span>
+</div>
+<input class="w-full" max="100" min="0" oninput="document.getElementById('brightnessVal').innerText = this.value + '%'" type="range" value="85"/>
+</div>
+<!-- Network Settings -->
+<div class="space-y-sm">
+<p class="text-label-md font-label-md text-on-surface-variant uppercase tracking-widest">ESP32 Network</p>
+<div class="border border-outline-variant p-sm space-y-md">
+<div class="flex justify-between items-center border-b border-outline-variant pb-xs">
+<span class="text-body-sm font-body-sm opacity-60">IP Address</span>
+<span class="text-mono-sm font-mono-sm">192.168.1.144</span>
+</div>
+<div class="flex justify-between items-center border-b border-outline-variant pb-xs">
+<span class="text-body-sm font-body-sm opacity-60">Protocol</span>
+<span class="text-mono-sm font-mono-sm">MQTT over TLS</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-body-sm font-body-sm opacity-60">Status</span>
+<span class="text-mono-sm font-mono-sm text-green-500">CONNECTED</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Technical Footnote -->
+<div class="mt-xl pt-md border-t border-outline-variant">
+<p class="text-[10px] text-on-surface-variant opacity-40 uppercase leading-tight">
+                                ESP32-WROOM-32 Revision 3 • Firmware v4.2.1 • Encryption: AES-256-GCM
+                            </p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- BottomNavBar - Predicted Component (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-sm border-t border-outline-variant bg-surface-container-lowest z-50 md:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-variant p-xs" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="text-mono-sm font-mono-sm">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-variant p-xs" href="#">
+<span class="material-symbols-outlined">videocam</span>
+<span class="text-mono-sm font-mono-sm">Live</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-variant p-xs" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="text-mono-sm font-mono-sm">Alerts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary active:bg-surface-variant p-xs" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-mono-sm font-mono-sm">Settings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-variant p-xs" href="#">
+<span class="material-symbols-outlined">more_horiz</span>
+<span class="text-mono-sm font-mono-sm">More</span>
+</a>
+</nav>
+</main>
+<script>
+        function triggerAlarm() {
+            const btn = document.getElementById('alarmBtn');
+            const originalText = btn.innerHTML;
+            
+            // Interaction visual feedback
+            btn.classList.add('bg-error', 'text-on-error', 'border-error');
+            btn.innerHTML = '<span class="material-symbols-outlined">warning</span> SYSTEM ALARM ACTIVE';
+            
+            // Atmospheric flicker effect on the page
+            document.body.classList.add('animate-pulse');
+            
+            setTimeout(() => {
+                btn.classList.remove('bg-error', 'text-on-error', 'border-error');
+                btn.innerHTML = originalText;
+                document.body.classList.remove('animate-pulse');
+            }, 3000);
+        }
+
+        // Handle navigation active states (Simulation)
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', (e) => {
+                // If it was a real app, logic for routing would be here
+                console.log('Navigating to:', link.innerText);
+            });
+        });
+    </script>
+</body></html>

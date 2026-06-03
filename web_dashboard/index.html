@@ -275,6 +275,59 @@
       <h3>🔔 Latest Alert</h3>
       <div id="last-alert-content" class="no-alert">No alerts yet – system is monitoring</div>
     </div>
+
+    <!-- Analytics & Reports -->
+    <div class="analytics-section" id="analytics-section">
+      <div class="analytics-header">
+        <div>
+          <h3>📈 Analytics & Reports</h3>
+          <p class="analytics-sub">View incident data and captured photos by time range</p>
+        </div>
+        <div class="range-toggle-group">
+          <button class="range-btn active" data-range="day" id="range-day">Today</button>
+          <button class="range-btn" data-range="week" id="range-week">This Week</button>
+          <button class="range-btn" data-range="month" id="range-month">This Month</button>
+        </div>
+      </div>
+
+      <div class="summary-stats-row" id="analytics-stats">
+        <div class="mini-stat-card" id="ms-total">
+          <div class="mini-stat-value" id="ms-total-val">0</div>
+          <div class="mini-stat-label">Total Incidents</div>
+        </div>
+        <div class="mini-stat-card critical" id="ms-critical">
+          <div class="mini-stat-value" id="ms-critical-val">0</div>
+          <div class="mini-stat-label">Critical</div>
+        </div>
+        <div class="mini-stat-card warning" id="ms-warning">
+          <div class="mini-stat-value" id="ms-warning-val">0</div>
+          <div class="mini-stat-label">Warning</div>
+        </div>
+        <div class="mini-stat-card info" id="ms-threat">
+          <div class="mini-stat-value" id="ms-threat-val">—</div>
+          <div class="mini-stat-label">Top Threat</div>
+        </div>
+      </div>
+
+      <div class="gallery-section">
+        <div class="gallery-header">
+          <h4>📸 Captured Photos</h4>
+          <span class="gallery-count" id="gallery-count">0 captures</span>
+        </div>
+        <div class="photo-gallery-grid" id="photo-gallery">
+          <div class="empty-state" style="grid-column:1/-1;padding:32px;">
+            <div class="empty-icon">📷</div>
+            <p>No captures in this time range</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-actions">
+        <button class="btn btn-primary" id="send-report-btn">📧 Email Report</button>
+        <span class="test-result" id="report-result"></span>
+      </div>
+    </div>
+
   </section>
 
   <!-- ── PAGE: LIVE MONITOR ─────────────────────────────────────────────── -->

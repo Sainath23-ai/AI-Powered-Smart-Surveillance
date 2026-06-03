@@ -1,5 +1,85 @@
 [
   {
+    "id": "b0ffeaf4503d",
+    "timestamp": "2026-06-03 21:27:09",
+    "threat_type": "SOS Gesture: SOS Fist (Help Signal)",
+    "level": "critical",
+    "confidence": 0.95,
+    "image": "incident_7044bc3f.jpg",
+    "image_url": "/api/captures/image/incident_7044bc3f.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: SOS Gesture: SOS Fist (Help Signal)"
+  },
+  {
+    "id": "c3e1c144bc04",
+    "timestamp": "2026-06-03 21:27:08",
+    "threat_type": "SOS Gesture: Open Palm (Help Distress)",
+    "level": "critical",
+    "confidence": 0.85,
+    "image": "incident_d630ff01.jpg",
+    "image_url": "/api/captures/image/incident_d630ff01.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: SOS Gesture: Open Palm (Help Distress)"
+  },
+  {
+    "id": "2114b132a192",
+    "timestamp": "2026-06-03 21:26:42",
+    "threat_type": "Violence Detected",
+    "level": "critical",
+    "confidence": 1.0,
+    "image": "incident_b4925aa8.jpg",
+    "image_url": "/api/captures/image/incident_b4925aa8.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: Violence Detected"
+  },
+  {
+    "id": "09be3a021d63",
+    "timestamp": "2026-06-01 20:16:06",
+    "threat_type": "Violence Detected",
+    "level": "critical",
+    "confidence": 1.0,
+    "image": "incident_38c424d2.jpg",
+    "image_url": "/api/captures/image/incident_38c424d2.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: Violence Detected"
+  },
+  {
+    "id": "92795e739b3f",
+    "timestamp": "2026-06-01 18:47:22",
+    "threat_type": "Test Email Alert",
+    "method": "email",
+    "success": true,
+    "message": "Email sent to sainathpavanv17@gmail.com"
+  },
+  {
+    "id": "78da5b3452b8",
+    "timestamp": "2026-05-30 19:48:08",
+    "threat_type": "SOS Gesture: Open Palm (Help Distress)",
+    "level": "critical",
+    "confidence": 0.85,
+    "image": "incident_28661f29.jpg",
+    "image_url": "/api/captures/image/incident_28661f29.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: SOS Gesture: Open Palm (Help Distress)"
+  },
+  {
+    "id": "68d30bed07ed",
+    "timestamp": "2026-05-30 19:48:07",
+    "threat_type": "SOS Gesture: SOS Fist (Help Signal)",
+    "level": "critical",
+    "confidence": 0.95,
+    "image": "incident_b836bad0.jpg",
+    "image_url": "/api/captures/image/incident_b836bad0.jpg",
+    "method": "system",
+    "success": true,
+    "message": "Auto-detected: SOS Gesture: SOS Fist (Help Signal)"
+  },
+  {
     "id": "8d25bfa28300",
     "timestamp": "2026-05-30 12:23:58",
     "threat_type": "Violence Detected",

@@ -966,6 +966,210 @@ def batch_delete_incidents():
     return jsonify({"status": "deleted", "count": deleted_count})
 
 
+# ── Incident Analytics (time-range stats + photo gallery) ────
+def _filter_incidents_by_range(records, range_key):
+    """Return incidents filtered to the given time range and the (start, end) datetimes."""
+    now = datetime.now()
+    if range_key == "week":
+        from datetime import timedelta
+        start = now - timedelta(days=7)
+    elif range_key == "month":
+        from datetime import timedelta
+        start = now - timedelta(days=30)
+    else:                      # "day" (default)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    filtered = []
+    for r in records:
+        try:
+            ts = datetime.strptime(r.get("timestamp", ""), "%Y-%m-%d %H:%M:%S")
+            if ts >= start:
+                filtered.append(r)
+        except (ValueError, TypeError):
+            continue
+    return filtered, start, now
+
+
+@app.route("/api/incidents/stats", methods=["GET"])
+def incidents_stats():
+    range_key = request.args.get("range", "day")
+    records   = _read_json(INCIDENTS_LOG)
+    filtered, start, end = _filter_incidents_by_range(records, range_key)
+
+    critical = sum(1 for r in filtered if r.get("level") == "critical")
+    warning  = len(filtered) - critical
+    threat_types = {}
+    for r in filtered:
+        tt = r.get("threat_type", "Unknown")
+        threat_types[tt] = threat_types.get(tt, 0) + 1
+
+    # Recent photos – newest first, max 12
+    photos = []
+    for r in sorted(filtered, key=lambda x: x.get("timestamp", ""), reverse=True)[:12]:
+        img_url = r.get("image_url") or (f"/api/captures/image/{r['image']}" if r.get("image") else None)
+        photos.append({
+            "id":          r.get("id"),
+            "image_url":   img_url,
+            "timestamp":   r.get("timestamp"),
+            "threat_type": r.get("threat_type"),
+            "level":       r.get("level"),
+            "confidence":  r.get("confidence"),
+        })
+
+    return jsonify({
+        "total_incidents": len(filtered),
+        "critical_count":  critical,
+        "warning_count":   warning,
+        "threat_types":    threat_types,
+        "recent_photos":   photos,
+        "date_range": {
+            "start": start.strftime("%Y-%m-%d %H:%M:%S"),
+            "end":   end.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    })
+
+
+# ── Email Incident Report ─────────────────────────────────────
+@app.route("/api/report/email", methods=["POST"])
+def send_report_email():
+    data      = request.get_json(force=True, silent=True) or {}
+    range_key = data.get("range", "day")
+    range_labels = {"day": "Today", "week": "This Week (7 days)", "month": "This Month (30 days)"}
+    range_label  = range_labels.get(range_key, "Today")
+
+    records = _read_json(INCIDENTS_LOG)
+    filtered, start, end = _filter_incidents_by_range(records, range_key)
+
+    if not filtered:
+        return jsonify({"success": False, "message": f"No incidents found for {range_label}."})
+
+    cfg       = _load_config().get("gmail", {})
+    sender    = cfg.get("sender_email", "").strip()
+    password  = cfg.get("sender_password", "").strip()
+    recipient = cfg.get("recipient_email", "").strip()
+    if not sender or not password or not recipient:
+        return jsonify({"success": False, "message": "Gmail credentials not configured in Settings."})
+
+    critical = sum(1 for r in filtered if r.get("level") == "critical")
+    warning  = len(filtered) - critical
+    threat_types = {}
+    for r in filtered:
+        tt = r.get("threat_type", "Unknown")
+        threat_types[tt] = threat_types.get(tt, 0) + 1
+
+    # Build incident rows HTML
+    rows_html = ""
+    for r in filtered:
+        lvl = r.get("level", "warning")
+        lc  = "#ef4444" if lvl == "critical" else "#f59e0b"
+        conf = f"{round(float(r.get('confidence', 0)) * 100)}%"
+        rows_html += f"""
+        <tr style="border-bottom:1px solid #1e293b;">
+          <td style="padding:10px 12px;color:#94a3b8;font-size:13px;">{r.get('timestamp','')}</td>
+          <td style="padding:10px 12px;font-weight:600;">{r.get('threat_type','Unknown')}</td>
+          <td style="padding:10px 12px;color:{lc};font-weight:700;text-transform:uppercase;">{lvl}</td>
+          <td style="padding:10px 12px;font-family:monospace;">{conf}</td>
+        </tr>"""
+
+    # Build threat type breakdown rows
+    types_html = ""
+    for tt, cnt in sorted(threat_types.items(), key=lambda x: -x[1]):
+        types_html += f"""
+        <tr><td style="padding:6px 12px;color:#94a3b8;">{tt}</td>
+            <td style="padding:6px 12px;font-weight:700;">{cnt}</td></tr>"""
+
+    # Collect up to 6 photos for inline attachment
+    photo_cids = []
+    photo_attachments = []
+    sorted_incidents = sorted(filtered, key=lambda x: x.get("timestamp", ""), reverse=True)
+    for r in sorted_incidents[:6]:
+        img_name = r.get("image")
+        if img_name:
+            img_path = os.path.join(CAPTURES_DIR, img_name)
+            if os.path.isfile(img_path):
+                cid = f"capture_{len(photo_cids)}"
+                photo_cids.append(cid)
+                photo_attachments.append((cid, img_path, img_name))
+
+    # Build inline photo gallery HTML
+    photos_html = ""
+    if photo_cids:
+        photos_html = '<h3 style="margin:24px 0 12px;color:#e2e8f0;font-size:16px;">📸 Captured Evidence</h3><div style="display:flex;flex-wrap:wrap;gap:8px;">'
+        for cid in photo_cids:
+            photos_html += f'<img src="cid:{cid}" style="width:160px;height:100px;object-fit:cover;border-radius:6px;border:1px solid #334155;" />'
+        photos_html += '</div>'
+
+    html = f"""
+    <html><body style="font-family:'Segoe UI',Arial,sans-serif;background:#0a0d14;color:#e2e8f0;padding:24px;">
+      <div style="max-width:680px;margin:auto;background:#111827;border-radius:12px;border:1px solid #1e293b;overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#E31E24,#b91c1c);padding:28px;text-align:center;">
+          <h1 style="margin:0;font-size:22px;color:#fff;">🛡️ SafeGuard AI — Incident Report</h1>
+          <p style="margin:8px 0 0;opacity:0.9;font-size:14px;color:#fecaca;">{range_label} · {start.strftime('%b %d')} – {end.strftime('%b %d, %Y')}</p>
+        </div>
+        <div style="padding:24px;">
+          <h3 style="margin:0 0 16px;color:#e2e8f0;font-size:16px;">📊 Summary</h3>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+            <tr><td style="padding:8px 12px;color:#94a3b8;">Total Incidents</td>
+                <td style="padding:8px 12px;font-weight:700;font-size:18px;color:#f87171;">{len(filtered)}</td></tr>
+            <tr><td style="padding:8px 12px;color:#94a3b8;">Critical</td>
+                <td style="padding:8px 12px;font-weight:700;color:#ef4444;">{critical}</td></tr>
+            <tr><td style="padding:8px 12px;color:#94a3b8;">Warning</td>
+                <td style="padding:8px 12px;font-weight:700;color:#f59e0b;">{warning}</td></tr>
+          </table>
+
+          <h3 style="margin:20px 0 12px;color:#e2e8f0;font-size:16px;">🔍 Threat Breakdown</h3>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+            {types_html}
+          </table>
+
+          <h3 style="margin:20px 0 12px;color:#e2e8f0;font-size:16px;">📋 Incident Log</h3>
+          <table style="width:100%;border-collapse:collapse;">
+            <thead><tr style="background:#1e293b;">
+              <th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;">TIME</th>
+              <th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;">THREAT</th>
+              <th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;">LEVEL</th>
+              <th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;">CONF.</th>
+            </tr></thead>
+            <tbody>{rows_html}</tbody>
+          </table>
+
+          {photos_html}
+        </div>
+        <div style="background:#0a0d14;padding:14px 24px;text-align:center;font-size:11px;color:#475569;">
+          SafeGuard AI Surveillance · Report generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} · Team APEX
+        </div>
+      </div>
+    </body></html>
+    """
+
+    msg = MIMEMultipart("related")
+    msg["Subject"] = f"🛡️ SafeGuard AI Incident Report — {range_label} ({len(filtered)} incidents)"
+    msg["From"]    = f"SafeGuard AI <{sender}>"
+    msg["To"]      = recipient
+    msg.attach(MIMEText(html, "html"))
+
+    # Attach inline images
+    for cid, img_path, img_name in photo_attachments:
+        try:
+            with open(img_path, "rb") as f:
+                img = MIMEImage(f.read(), name=img_name)
+                img.add_header("Content-ID", f"<{cid}>")
+                img.add_header("Content-Disposition", "inline", filename=img_name)
+                msg.attach(img)
+        except Exception as exc:
+            logger.warning("Could not attach photo %s: %s", img_name, exc)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
+            server.login(sender, password)
+            server.sendmail(sender, [recipient], msg.as_string())
+        logger.info("Incident report emailed to %s (%d incidents)", recipient, len(filtered))
+        return jsonify({"success": True, "message": f"Report sent to {recipient} ({len(filtered)} incidents)"})
+    except smtplib.SMTPAuthenticationError:
+        err = "Gmail authentication failed. Use an App Password with 2-Step Verification enabled."
+        return jsonify({"success": False, "message": err})
+    except Exception as exc:
+        logger.error("Failed to send report email: %s", exc)
+        return jsonify({"success": False, "message": str(exc)})
 
 
 # ── Alerts ───────────────────────────────────────────────────
