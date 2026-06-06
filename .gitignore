@@ -36,9 +36,16 @@ ENV/
 *.swo
 *~
 
-# Environment variables
+# Environment variables / Secrets — never commit real credentials
 .env
 .env.local
+config/settings.json
+
+# Large ML model files
+yolov8n.pt
+*.pt
+*.onnx
+*.pb
 
 # Large files and uploads
 uploads/

@@ -328,7 +328,11 @@ def _detection_loop():
     except (ValueError, TypeError):
         pass
 
-    cap = cv2.VideoCapture(source)
+    # Use DirectShow backend on Windows for fast camera initialization
+    if isinstance(source, int) and os.name == "nt":
+        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(source)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  int(cam_cfg.get("width",  640)))
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(cam_cfg.get("height", 480)))
     cap.set(cv2.CAP_PROP_FPS,          int(cam_cfg.get("fps",     30)))
@@ -531,8 +535,17 @@ def _detection_loop():
             prev_annotated = annotated.copy()
 
         # ── Determine threat level ───────────────────────────
+        # Extract activity variables from activity_results so they are
+        # always defined, regardless of whether the motion-bypass branch ran.
         threat_level = "none"
         trigger_alert = None
+
+        violence_score    = activity_results.get("violence", {}).get("score", 0.0)
+        violence_detected = activity_results.get("violence", {}).get("detected", False)
+        loiter_score      = activity_results.get("loitering", {}).get("confidence", 0.0)
+        loiter_detected   = activity_results.get("loitering", {}).get("detected", False)
+        panic_score       = activity_results.get("running_panic", {}).get("confidence", 0.0)
+        panic_detected    = activity_results.get("running_panic", {}).get("detected", False)
 
         thief_match  = face_results.get("thief_match", {})
         face_cover   = face_results.get("face_cover",  {})

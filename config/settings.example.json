@@ -1,19 +1,19 @@
 {
   "gmail": {
-    "sender_email": "sainathpavanv@gmail.com",
-    "sender_password": "xuqx zued lvmb svgv",
-    "recipient_email": "sainathpavanv17@gmail.com"
+    "sender_email": "your-email@gmail.com",
+    "sender_password": "your-gmail-app-password",
+    "recipient_email": "alert-recipient@gmail.com"
   },
   "phone": {
-    "twilio_account_sid": "REDACTED",
-    "twilio_auth_token": "REDACTED",
-    "twilio_phone_number": "REDACTED",
-    "recipient_phone_number": "REDACTED"
+    "twilio_account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "twilio_auth_token": "your-twilio-auth-token",
+    "twilio_phone_number": "+1XXXXXXXXXX",
+    "recipient_phone_number": "+1XXXXXXXXXX"
   },
   "esp32": {
     "host": "192.168.1.100",
     "port": 80,
-    "enabled": true
+    "enabled": false
   },
   "detection": {
     "violence_threshold": 0.75,
