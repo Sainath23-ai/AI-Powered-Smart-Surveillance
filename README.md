@@ -3,8 +3,10 @@
 > **AI-powered women & child safety surveillance using Computer Vision, IoT & Real-time Alerts**
 
 [![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel)](https://ai-powered-smart-surveillance.vercel.app/)
+[![Backend API](https://img.shields.io/badge/⚙️%20Backend%20API-Render-46E3B7?style=for-the-badge&logo=render)](https://ai-powered-smart-surveillance.onrender.com/)
 
 🔗 **Live Dashboard:** [https://ai-powered-smart-surveillance.vercel.app/](https://ai-powered-smart-surveillance.vercel.app/)
+⚙️ **Backend API:** [https://ai-powered-smart-surveillance.onrender.com/](https://ai-powered-smart-surveillance.onrender.com/)
 
 ---
 
@@ -144,6 +146,17 @@ Both the open palm and closed SOS fist trigger emergency alerts.
 | Pose Safety Threshold | 68% | Min confidence for pose-based safety scenarios |
 | Sensitivity | Medium | Loitering/panic detection sensitivity |
 | Alert Cooldown | 30s | Minimum seconds between repeat alerts |
+
+---
+
+## 🌐 Deployment
+
+| Service | Platform | URL |
+|---|---|---|
+| Frontend Dashboard | Vercel | [ai-powered-smart-surveillance.vercel.app](https://ai-powered-smart-surveillance.vercel.app/) |
+| Backend API | Render | [ai-powered-smart-surveillance.onrender.com](https://ai-powered-smart-surveillance.onrender.com/) |
+
+> **Note:** The Render free tier spins down after 15 min of inactivity. The first request may take ~30s to wake up.
 
 ---
 
