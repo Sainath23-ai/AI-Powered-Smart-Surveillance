@@ -2,6 +2,10 @@
 
 > **AI-powered women & child safety surveillance using Computer Vision, IoT & Real-time Alerts**
 
+[![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel)](https://ai-powered-smart-surveillance.vercel.app/)
+
+🔗 **Live Dashboard:** [https://ai-powered-smart-surveillance.vercel.app/](https://ai-powered-smart-surveillance.vercel.app/)
+
 ---
 
 ## 📋 Features
@@ -67,7 +71,8 @@ python app.py
 ```
 
 ### 3. Open Dashboard
-Navigate to: **http://127.0.0.1:5000**
+Local: **http://127.0.0.1:5000**
+Live: **[https://ai-powered-smart-surveillance.vercel.app/](https://ai-powered-smart-surveillance.vercel.app/)**
 
 ### 4. Configure Alerts (Settings Page)
 - Enter your **Gmail** address + **App Password**
