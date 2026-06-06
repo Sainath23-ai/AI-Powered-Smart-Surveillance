@@ -3,18 +3,23 @@
 /* ───────────────────────────────────────────────────────── */
 
 const BACKEND_PORT = '5000';
+const RENDER_BACKEND = 'https://ai-powered-smart-surveillance.onrender.com';
 const API = (() => {
   const loc = window.location;
+  // Running from a local file
   if (loc.protocol === 'file:') {
     return `http://127.0.0.1:${BACKEND_PORT}/api`;
   }
   const host = loc.hostname || '127.0.0.1';
-  if (loc.protocol === 'http:' || loc.protocol === 'https:') {
+  // Running on localhost (local dev)
+  if (host === '127.0.0.1' || host === 'localhost') {
     if (loc.port === BACKEND_PORT || loc.host.endsWith(`:${BACKEND_PORT}`)) {
       return `${loc.protocol}//${loc.host}/api`;
     }
+    return `http://${host}:${BACKEND_PORT}/api`;
   }
-  return `http://${host}:${BACKEND_PORT}/api`;
+  // Hosted (Vercel / any remote) → use Render backend
+  return `${RENDER_BACKEND}/api`;
 })();
 const API_ORIGIN = API.replace(/\/api\/?$/, '');
 const captureUrl = path => (path.startsWith('http') ? path : `${API_ORIGIN}${path}`);
@@ -817,7 +822,7 @@ async function loadIncidents() {
     }
 
     if (!contentType.includes('application/json')) {
-      throw new Error('API did not return JSON — restart backend and open http://127.0.0.1:5000');
+      throw new Error('API did not return JSON — restart backend or check ' + RENDER_BACKEND);
     }
 
     const incidents = JSON.parse(body);
