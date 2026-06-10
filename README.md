@@ -73,7 +73,6 @@ python app.py
 ```
 
 ### 3. Open Dashboard
-Local: **http://127.0.0.1:5000**
 Live: **[https://ai-powered-smart-surveillance.vercel.app/](https://ai-powered-smart-surveillance.vercel.app/)**
 
 ### 4. Configure Alerts (Settings Page)
